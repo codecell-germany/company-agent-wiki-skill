@@ -9,7 +9,9 @@
 > Context is king.
 
 `company-agent-wiki-skill` is an agent-first local company knowledge toolkit.
-It ships as a real CLI plus a Codex-style skill payload, so an agent can set up a private company wiki, verify the index state, search knowledge, inspect metadata and headings first, and only then load full Markdown when needed.
+It ships as a real CLI plus a shared agent skill payload, so an agent can set up a private company wiki, verify the index state, search knowledge, inspect metadata and headings first, and only then load full Markdown when needed.
+
+The shared install layout is meant to work across agent environments that understand the common `~/.agents` skill home, including Codex through its compatibility mirror and other skills.sh-style runtimes such as Claude Code or OpenClaw.
 
 The product surface is the public CLI:
 
@@ -46,7 +48,7 @@ Here, front matter is not only stored in Markdown files, but also indexed and fi
 
 ## Installation
 
-### 1. Install into Codex with one command
+### 1. Install with one command
 
 The preferred install path is:
 
@@ -56,19 +58,24 @@ npx -y -p @codecell-germany/company-agent-wiki-skill company-agent-wiki-skill in
 
 That installs:
 
+- the shared skill payload into `~/.agents/skills/company-agent-wiki-cli`
+- the shared runtime into `~/.agents/tools/company-agent-wiki-cli`
+- the shared CLI shim into `~/.agents/bin/company-agent-wiki-cli`
 - the skill payload into `~/.codex/skills/company-agent-wiki-cli`
 - the runtime into `~/.codex/tools/company-agent-wiki-cli`
-- the CLI shim into `~/.codex/bin/company-agent-wiki-cli`
+- the Codex compatibility shim into `~/.codex/bin/company-agent-wiki-cli`
 
 ### 2. Verify the CLI
 
 ```bash
 company-agent-wiki-cli --help
+"$HOME/.agents/bin/company-agent-wiki-cli" --help
 "$CODEX_HOME/bin/company-agent-wiki-cli" --help
 "$HOME/.codex/bin/company-agent-wiki-cli" --help
 ```
 
-In Codex, the direct shim path is often the most reliable fallback.
+For agent environments that use the shared `~/.agents` home, the direct shim path is often the most reliable fallback.
+In Codex, the compatibility shim under `~/.codex/bin` also works.
 
 ### 3. Optional local repo workflow
 
@@ -144,6 +151,7 @@ If a fresh agent receives this skill, the correct order is:
 
 1. Verify the CLI path:
    - `company-agent-wiki-cli --help`
+   - `"$HOME/.agents/bin/company-agent-wiki-cli" --help`
    - `"$CODEX_HOME/bin/company-agent-wiki-cli" --help`
    - `"$HOME/.codex/bin/company-agent-wiki-cli" --help`
 2. If no workspace exists yet, create one with `setup workspace`.

@@ -15,14 +15,14 @@ export function writeJsonFile(targetPath: string, value: unknown): void {
 }
 
 export function writeJsonAtomic(targetPath: string, value: unknown): void {
-  const tempPath = `${targetPath}.tmp`;
+  const tempPath = `${targetPath}.${process.pid}.${Math.random().toString(16).slice(2)}.tmp`;
   ensureDir(path.dirname(targetPath));
   writeJsonFile(tempPath, value);
   fs.renameSync(tempPath, targetPath);
 }
 
 export function replaceFileAtomic(targetPath: string, content: string | Buffer): void {
-  const tempPath = `${targetPath}.tmp`;
+  const tempPath = `${targetPath}.${process.pid}.${Math.random().toString(16).slice(2)}.tmp`;
   ensureDir(path.dirname(targetPath));
   fs.writeFileSync(tempPath, content);
   fs.renameSync(tempPath, targetPath);

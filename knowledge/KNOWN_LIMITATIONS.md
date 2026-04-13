@@ -30,3 +30,4 @@
 - The CLI can initialize a private Git remote URL, but it does not validate remote policy or access controls.
 - The package does not enforce OS-level filesystem permissions; the workspace owner must place the private workspace in a properly protected location.
 - The global workspace registry is only a discovery layer, not an access-control boundary. Any agent running as the same local user can read the registered workspace path.
+- The installer now targets a shared `~/.agents` home first and mirrors into `~/.codex` for compatibility, but it does not manage every agent product's own skill-indexing or refresh logic automatically.

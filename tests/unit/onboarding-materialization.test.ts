@@ -18,7 +18,7 @@ function writeAnswersFile(workspaceRoot: string): string {
     answerFile,
     JSON.stringify(
       {
-        answeredBy: "Codex Agent",
+        answeredBy: "AI Agent",
         notes: ["Buchhaltung zuerst priorisieren"],
         answers: {
           official_legal_name: "CodeCell Applications GmbH",
@@ -153,7 +153,7 @@ describe("company onboarding materialization", () => {
     tempPaths.push(workspaceRoot);
     setupWorkspace({ workspaceRoot, gitInit: false });
     const answerFile = writeJson(workspaceRoot, "flat-answers.json", {
-      answeredBy: "Codex Agent",
+      answeredBy: "AI Agent",
       official_legal_name: "CodeCell Applications GmbH",
       legal_form: "GmbH",
       vat_regime: "Regelbesteuerung"
@@ -195,7 +195,7 @@ describe("company onboarding materialization", () => {
     setupWorkspace({ workspaceRoot, gitInit: false });
 
     const emptyFile = writeJson(workspaceRoot, "empty.json", {
-      answeredBy: "Codex Agent",
+      answeredBy: "AI Agent",
       answers: {}
     });
 

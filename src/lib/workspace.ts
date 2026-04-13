@@ -42,6 +42,10 @@ export function getDefaultCodexHome(): string {
   return process.env.CODEX_HOME || path.join(os.homedir(), ".codex");
 }
 
+export function getDefaultAgentsHome(): string {
+  return process.env.AGENTS_HOME || path.join(os.homedir(), ".agents");
+}
+
 export function getGlobalRegistryDir(): string {
   const explicit = process.env.COMPANY_AGENT_WIKI_CONFIG_HOME;
   if (explicit?.trim()) {
@@ -763,6 +767,9 @@ export function doctor(workspaceRoot: string): {
 } {
   const paths = resolveWorkspacePaths(workspaceRoot);
   const checks: Array<{ name: string; ok: boolean; message: string }> = [];
+  const agentsHome = getDefaultAgentsHome();
+  const agentsBinDir = path.join(agentsHome, "bin");
+  const agentsShimPath = path.join(agentsBinDir, CLI_NAME);
   const codexHome = getDefaultCodexHome();
   const codexBinDir = path.join(codexHome, "bin");
   const codexShimPath = path.join(codexBinDir, CLI_NAME);
@@ -793,11 +800,27 @@ export function doctor(workspaceRoot: string): {
   });
 
   checks.push({
+    name: "agents-cli-shim",
+    ok: fileExists(agentsShimPath),
+    message: fileExists(agentsShimPath)
+      ? `Shared agent CLI shim found: ${agentsShimPath}`
+      : `Shared agent CLI shim missing: ${agentsShimPath}`
+  });
+
+  checks.push({
+    name: "agents-bin-in-path",
+    ok: pathEntries.includes(agentsBinDir),
+    message: pathEntries.includes(agentsBinDir)
+      ? `Shared agent bin directory is available in PATH: ${agentsBinDir}`
+      : `Shared agent bin directory is not in PATH: ${agentsBinDir}`
+  });
+
+  checks.push({
     name: "codex-cli-shim",
     ok: fileExists(codexShimPath),
     message: fileExists(codexShimPath)
-      ? `Codex CLI shim found: ${codexShimPath}`
-      : `Codex CLI shim missing: ${codexShimPath}`
+      ? `Codex compatibility shim found: ${codexShimPath}`
+      : `Codex compatibility shim missing: ${codexShimPath}`
   });
 
   checks.push({

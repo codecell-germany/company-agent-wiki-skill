@@ -59,7 +59,7 @@ If target files already exist, the CLI refuses the write unless `--force` is add
 
 ```json
 {
-  "answeredBy": "Codex Agent",
+  "answeredBy": "AI Agent",
   "notes": ["Buchhaltung zuerst priorisieren"],
   "answers": {
     "official_legal_name": "Beispiel GmbH",

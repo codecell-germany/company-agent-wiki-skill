@@ -24,7 +24,7 @@ function writeAnswersFile(workspaceRoot: string): string {
     answerFile,
     JSON.stringify(
       {
-        answeredBy: "Codex Agent",
+        answeredBy: "AI Agent",
         answers: {
           official_legal_name: "CodeCell Applications GmbH",
           legal_form: "GmbH",
@@ -126,6 +126,32 @@ describe("onboarding company CLI", () => {
     }) as SpawnSyncReturns<string>;
     expect(about.status).toBe(0);
     expect(fs.realpathSync(JSON.parse(about.stdout).data.cwdWorkspace)).toBe(fs.realpathSync(workspaceRoot));
+  });
+
+  it("installs shared-agent and Codex compatibility shims through the installer", () => {
+    const tempRoot = createTempWorkspace();
+    tempPaths.push(tempRoot);
+    const agentsHome = path.join(tempRoot, "agents");
+    const codexHome = path.join(tempRoot, "codex");
+
+    const install = spawnSync(process.execPath, [path.join(repoRoot, "dist/installer.js"), "install", "--agents-home", agentsHome, "--codex-home", codexHome, "--force", "--json"], {
+      cwd: repoRoot,
+      encoding: "utf8"
+    }) as SpawnSyncReturns<string>;
+
+    expect(install.status).toBe(0);
+    const payload = JSON.parse(install.stdout);
+    expect(payload.data.installs).toHaveLength(2);
+    expect(fs.existsSync(path.join(agentsHome, "bin", "company-agent-wiki-cli"))).toBe(true);
+    expect(fs.existsSync(path.join(codexHome, "bin", "company-agent-wiki-cli"))).toBe(true);
+
+    const about = spawnSync(path.join(agentsHome, "bin", "company-agent-wiki-cli"), ["about", "--json"], {
+      cwd: repoRoot,
+      encoding: "utf8"
+    }) as SpawnSyncReturns<string>;
+    expect(about.status).toBe(0);
+    const aboutPayload = JSON.parse(about.stdout);
+    expect(fs.realpathSync(aboutPayload.data.runtimeHome)).toBe(fs.realpathSync(agentsHome));
   });
 
   it("can resolve a globally registered workspace outside the workspace directory", () => {

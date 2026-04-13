@@ -2,7 +2,7 @@
 
 ## Scope
 
-Phase 1 delivers a publishable CLI and Codex skill for a private, local company knowledge workspace.
+Phase 1 delivers a publishable CLI and a shared agent skill for a private, local company knowledge workspace.
 
 The implementation is intentionally limited to:
 
@@ -46,7 +46,8 @@ The index and manifest are derived artifacts and should stay ignored in the priv
 8. `search`, `route` and `read` either enforce a fresh index or can explicitly auto-rebuild when `--auto-rebuild` is set.
 9. Runtime commands may detect the current workspace automatically when the shell is already inside a private workspace.
 10. A global per-user workspace registry stores known workspace paths and a default workspace so other agents can resolve the knowledge location automatically on macOS, Windows and Linux.
-11. `serve` exposes the same read-only data through a local web view and now distinguishes `missing`, `stale` and `ok` states with a rebuild action.
+11. The installer now targets a shared `~/.agents` home as the primary skill/runtime location and also installs a Codex compatibility mirror under `~/.codex`.
+12. `serve` exposes the same read-only data through a local web view and now distinguishes `missing`, `stale` and `ok` states with a rebuild action.
 
 ## Onboarding Model
 

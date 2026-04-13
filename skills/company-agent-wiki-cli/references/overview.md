@@ -1,6 +1,7 @@
 # Overview
 
 `company-agent-wiki-cli` is the public interface for a private, local company knowledge workspace.
+The published package now installs into a shared `~/.agents` home first and mirrors into `~/.codex` for Codex compatibility.
 
 ## Source of Truth
 

@@ -66,7 +66,8 @@ Installer aus lokalem Tarball:
 ```bash
 TMP="$(mktemp -d)"
 cd "$TMP"
-npx -y -p /absolute/path/to/codecell-germany-company-agent-wiki-skill-0.1.0.tgz company-agent-wiki-skill install --codex-home "$TMP/codex" --force
+npx -y -p /absolute/path/to/codecell-germany-company-agent-wiki-skill-0.1.0.tgz company-agent-wiki-skill install --agents-home "$TMP/agents" --codex-home "$TMP/codex" --force
+"$TMP/agents/bin/company-agent-wiki-cli" --help
 "$TMP/codex/bin/company-agent-wiki-cli" --help
 ```
 
@@ -114,7 +115,8 @@ TMP="$(mktemp -d)"
 CACHE="$(mktemp -d)"
 cd "$TMP"
 npm_config_cache="$CACHE" npx -y @codecell-germany/company-agent-wiki-skill@0.1.0 company-agent-wiki-cli --help
-npm_config_cache="$CACHE" npx -y @codecell-germany/company-agent-wiki-skill@0.1.0 company-agent-wiki-skill install --codex-home "$TMP/codex" --force
+npm_config_cache="$CACHE" npx -y @codecell-germany/company-agent-wiki-skill@0.1.0 company-agent-wiki-skill install --agents-home "$TMP/agents" --codex-home "$TMP/codex" --force
+"$TMP/agents/bin/company-agent-wiki-cli" --help
 "$TMP/codex/bin/company-agent-wiki-cli" --help
 ```
 
@@ -155,6 +157,8 @@ npx -y skills add codecell-germany/company-agent-wiki-skill -g --skill company-a
 
 - CLI läuft über `company-agent-wiki-cli`
 - Installer läuft über `company-agent-wiki-skill`
+- Shared agent install unter `~/.agents` funktioniert
+- Codex-Kompatibilitätsinstall unter `~/.codex` funktioniert
 - README, Skill, Referenzen und Knowledge sind synchron
 - `npm pack` enthält nur gewollte Dateien
 - lokaler Tarball-Smoketest ist grün

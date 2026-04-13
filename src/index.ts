@@ -6,6 +6,7 @@ import { Command } from "commander";
 import { CLI_NAME, CLI_SCHEMA_VERSION, EXIT_CODES, PACKAGE_NAME } from "./lib/constants";
 import { CliError, coerceCliError } from "./lib/errors";
 import { getGitDiff, getGitHistory } from "./lib/git";
+import { detectInstalledRuntimeHome } from "./lib/install";
 import {
   getDocumentHeadings,
   getDocumentMetadataById,
@@ -22,6 +23,7 @@ import { startServer } from "./lib/server";
 import {
   addRoot,
   detectWorkspaceRoot,
+  getDefaultAgentsHome,
   doctor,
   getDefaultCodexHome,
   getGlobalRegistryPath,
@@ -131,14 +133,20 @@ program.name(CLI_NAME).description("Agent-first local company knowledge CLI").ve
 
 program
   .command("about")
-  .description("Show CLI runtime metadata and common Codex paths")
+  .description("Show CLI runtime metadata and common shared-agent paths")
   .option("--json", "Emit JSON output", false)
   .action((options) => {
+    const agentsHome = getDefaultAgentsHome();
     const codexHome = getDefaultCodexHome();
+    const runtimeHome = detectInstalledRuntimeHome(__dirname) || null;
       const data = {
         packageName: PACKAGE_NAME,
         cliName: CLI_NAME,
         schemaVersion: CLI_SCHEMA_VERSION,
+        runtimeHome,
+        runtimeShimPath: runtimeHome ? path.join(runtimeHome, "bin", CLI_NAME) : null,
+        agentsHome,
+        agentsShimPath: path.join(agentsHome, "bin", CLI_NAME),
         codexHome,
         codexShimPath: path.join(codexHome, "bin", CLI_NAME),
         cwdWorkspace: detectWorkspaceRoot(process.cwd()) || null,
@@ -153,6 +161,10 @@ program
 
     process.stdout.write(`${CLI_NAME}\n`);
     process.stdout.write(`  schema version: ${CLI_SCHEMA_VERSION}\n`);
+    if (data.runtimeShimPath) {
+      process.stdout.write(`  runtime shim: ${data.runtimeShimPath}\n`);
+    }
+    process.stdout.write(`  shared agent shim: ${data.agentsShimPath}\n`);
     process.stdout.write(`  codex shim: ${data.codexShimPath}\n`);
     if (data.cwdWorkspace) {
       process.stdout.write(`  detected workspace: ${data.cwdWorkspace}\n`);

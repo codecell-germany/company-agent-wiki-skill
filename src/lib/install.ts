@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { CLI_NAME, INSTALLER_NAME, SKILL_NAME } from "./constants";
+import { CLI_NAME, INSTALLER_NAME, PACKAGE_NAME, SKILL_NAME } from "./constants";
 import { ensureDir } from "./fs-utils";
 
 function resolvePackageRoot(fromDir: string): string {
@@ -52,26 +52,34 @@ exec "$NODE_BIN" "${runtimeScript}" "$@"
   fs.writeFileSync(targetPath, content, { encoding: "utf8", mode: 0o755 });
 }
 
-export function installIntoCodexHome(options?: {
-  codexHome?: string;
-  force?: boolean;
-}): {
-  codexHome: string;
+export function getDefaultAgentsHome(): string {
+  return process.env.AGENTS_HOME || path.join(os.homedir(), ".agents");
+}
+
+export function getDefaultCodexHome(): string {
+  return process.env.CODEX_HOME || path.join(os.homedir(), ".codex");
+}
+
+type InstallTarget = "agents" | "codex";
+
+interface InstallLocation {
+  target: InstallTarget;
+  home: string;
   binDir: string;
   runtimeDir: string;
   skillDir: string;
   shimPath: string;
   shimInPath: boolean;
   pathHint?: string;
-} {
-  const packageRoot = resolvePackageRoot(__dirname);
-  const codexHome = options?.codexHome || process.env.CODEX_HOME || path.join(os.homedir(), ".codex");
-  const runtimeDir = path.join(codexHome, "tools", SKILL_NAME);
-  const skillDir = path.join(codexHome, "skills", SKILL_NAME);
-  const binDir = path.join(codexHome, "bin");
+}
+
+function installIntoHome(target: InstallTarget, home: string, packageRoot: string, force = false): InstallLocation {
+  const runtimeDir = path.join(home, "tools", SKILL_NAME);
+  const skillDir = path.join(home, "skills", SKILL_NAME);
+  const binDir = path.join(home, "bin");
   const shimPath = path.join(binDir, CLI_NAME);
 
-  if (options?.force) {
+  if (force) {
     fs.rmSync(runtimeDir, { recursive: true, force: true });
     fs.rmSync(skillDir, { recursive: true, force: true });
     fs.rmSync(shimPath, { force: true });
@@ -99,7 +107,8 @@ export function installIntoCodexHome(options?: {
   writeShim(shimPath, runtimeScript);
 
   return {
-    codexHome,
+    target,
+    home,
     binDir,
     runtimeDir,
     skillDir,
@@ -108,5 +117,57 @@ export function installIntoCodexHome(options?: {
     pathHint: (process.env.PATH || "").split(path.delimiter).includes(binDir)
       ? undefined
       : `The shim exists, but ${binDir} is not in PATH. Use "${shimPath}" directly or add ${binDir} to PATH.`
+  };
+}
+
+export function detectInstalledRuntimeHome(runtimeDir: string): string | undefined {
+  const normalized = path.resolve(runtimeDir);
+  const skillDir = path.dirname(normalized);
+  const toolsDir = path.dirname(skillDir);
+  if (path.basename(normalized) !== "dist") {
+    return undefined;
+  }
+  if (path.basename(skillDir) !== SKILL_NAME || path.basename(toolsDir) !== "tools") {
+    return undefined;
+  }
+  return path.dirname(toolsDir);
+}
+
+export function installIntoAgentHomes(options?: {
+  agentsHome?: string;
+  codexHome?: string;
+  force?: boolean;
+  target?: "agents" | "codex" | "all";
+}): {
+  packageName: string;
+  installerName: string;
+  cliName: string;
+  installs: InstallLocation[];
+} {
+  const packageRoot = resolvePackageRoot(__dirname);
+  const agentsHome = options?.agentsHome || getDefaultAgentsHome();
+  const codexHome = options?.codexHome || getDefaultCodexHome();
+  const target = options?.target || "all";
+  if (!["agents", "codex", "all"].includes(target)) {
+    throw new Error(`Unsupported install target "${target}". Use agents, codex or all.`);
+  }
+  const installs: InstallLocation[] = [];
+
+  if (target === "agents" || target === "all") {
+    installs.push(installIntoHome("agents", agentsHome, packageRoot, options?.force));
+  }
+
+  if (target === "codex" || target === "all") {
+    const shouldSkipCodex = installs.some((entry) => entry.home === codexHome);
+    if (!shouldSkipCodex) {
+      installs.push(installIntoHome("codex", codexHome, packageRoot, options?.force));
+    }
+  }
+
+  return {
+    packageName: PACKAGE_NAME,
+    installerName: INSTALLER_NAME,
+    cliName: CLI_NAME,
+    installs
   };
 }

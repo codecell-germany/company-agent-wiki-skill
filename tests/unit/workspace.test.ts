@@ -68,7 +68,7 @@ describe("workspace scaffold UX", () => {
     expect(fs.existsSync(path.join(workspaceRoot, "knowledge/canonical/company-profile.md"))).toBe(false);
   });
 
-  it("can detect the workspace root from nested folders and reports Codex runtime checks", () => {
+  it("can detect the workspace root from nested folders and reports shared-agent runtime checks", () => {
     const workspaceRoot = createTempWorkspace();
     tempPaths.push(workspaceRoot);
     const registryHome = createTempWorkspace();
@@ -83,6 +83,8 @@ describe("workspace scaffold UX", () => {
 
     const result = doctor(workspaceRoot);
     const checkNames = result.checks.map((check) => check.name);
+    expect(checkNames).toContain("agents-cli-shim");
+    expect(checkNames).toContain("agents-bin-in-path");
     expect(checkNames).toContain("codex-cli-shim");
     expect(checkNames).toContain("codex-bin-in-path");
     expect(checkNames).toContain("global-workspace-registry");

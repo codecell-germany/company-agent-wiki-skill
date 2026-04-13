@@ -4,6 +4,8 @@
 
 ```bash
 npx -y -p @codecell-germany/company-agent-wiki-skill company-agent-wiki-skill install --force
+"$HOME/.agents/bin/company-agent-wiki-cli" --help
+"$AGENTS_HOME/bin/company-agent-wiki-cli" --help
 "$CODEX_HOME/bin/company-agent-wiki-cli" --help
 "$HOME/.codex/bin/company-agent-wiki-cli" --help
 company-agent-wiki-cli about --json

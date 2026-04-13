@@ -12,6 +12,8 @@ Use this skill when the task is about a private company knowledge workspace buil
 - Git-backed history
 - a read-only local browsing view
 
+This package now targets a shared `~/.agents` home first so the same published package can work across multiple agent runtimes, not only Codex.
+
 ## Preconditions
 
 - The public CLI binary is `company-agent-wiki-cli`.
@@ -19,22 +21,37 @@ Use this skill when the task is about a private company knowledge workspace buil
 - The private workspace may be the current dedicated local folder; it just must not be the public skill/CLI repo.
 - The human should provide the workspace path at least once and, if desired, the private Git remote URL. After setup or manual registration, the CLI stores the workspace path in a global per-user registry so later agents can resolve it automatically.
 - Runtime discovery matters. Before relying on the CLI, verify which path is actually available.
-- In Codex, the most reliable fallback is usually the installed shim under `$CODEX_HOME/bin` or `~/.codex/bin`.
+- The primary shared install target is `~/.agents`. Codex additionally gets a compatibility mirror under `~/.codex`.
 - The preferred one-command installer path is `npx -y -p @codecell-germany/company-agent-wiki-skill company-agent-wiki-skill install --force`. This only works after the npm package is really published.
-- `node dist/index.js` only works inside the public implementation repo after `npm run build`, not inside an arbitrary private workspace.
 - If the binary is not already installed in PATH, use these fallbacks in this order:
 
 ```bash
+"$HOME/.agents/bin/company-agent-wiki-cli" --help
+"$AGENTS_HOME/bin/company-agent-wiki-cli" --help
 "$CODEX_HOME/bin/company-agent-wiki-cli" --help
 "$HOME/.codex/bin/company-agent-wiki-cli" --help
 company-agent-wiki-cli --help
 npx -y -p @codecell-germany/company-agent-wiki-skill company-agent-wiki-skill install --force
+```
+
+If you are actively developing inside the public implementation repo, the repo-local fallback also exists:
+
+```bash
+"$HOME/.agents/bin/company-agent-wiki-cli" --help
+"$CODEX_HOME/bin/company-agent-wiki-cli" --help
 node dist/index.js --help
 ```
 
 ## First Run
 
-1. In Codex, start with the explicit shim paths:
+1. Start with the shared agent shim path:
+
+```bash
+"$HOME/.agents/bin/company-agent-wiki-cli" --help
+"$AGENTS_HOME/bin/company-agent-wiki-cli" --help
+```
+
+If you are in Codex, the compatibility shim also works:
 
 ```bash
 "$CODEX_HOME/bin/company-agent-wiki-cli" --help
