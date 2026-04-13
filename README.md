@@ -38,8 +38,8 @@ The core design is simple:
 - Git stays the audit and history layer
 - the CLI is the real product surface for agents
 
-The retrieval model is deliberately inspired by Anthropic's Markdown plus YAML front-matter pattern for Claude Code subagents:
-[Anthropic Claude Code Subagents](https://docs.anthropic.com/en/docs/claude-code/sub-agents)
+The retrieval model is deliberately inspired by Anthropic's Agent Skills model with YAML front matter, progressive disclosure and filesystem-based loading:
+[Anthropic Agent Skills Overview](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview)
 
 The difference is the retrieval layer.
 Here, front matter is not only stored in Markdown files, but also indexed and filterable through a local SQLite search layer.
