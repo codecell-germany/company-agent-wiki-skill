@@ -28,8 +28,18 @@ program
     }
 
     for (const install of result.installs) {
-      process.stdout.write(`Installed ${install.target} target into ${install.home}\n`);
+      process.stdout.write(`Installed ${install.target} target (${install.mode}) into ${install.home}\n`);
       process.stdout.write(`CLI shim: ${install.shimPath}\n`);
+      if (install.mode === "full") {
+        if (install.skillDir) {
+          process.stdout.write(`Skill payload: ${install.skillDir}\n`);
+        }
+        if (install.runtimeDir) {
+          process.stdout.write(`Runtime: ${install.runtimeDir}\n`);
+        }
+      } else if (install.runtimeDir) {
+        process.stdout.write(`Runtime source: ${install.runtimeDir}\n`);
+      }
       if (install.pathHint) {
         process.stdout.write(`warning: ${install.pathHint}\n`);
       }

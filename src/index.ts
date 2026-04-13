@@ -111,6 +111,9 @@ function printMetadata(metadata: DocumentMetadataView): void {
   if (metadata.systems.length > 0) {
     process.stdout.write(`  systems: ${metadata.systems.join(", ")}\n`);
   }
+  if (metadata.description) {
+    process.stdout.write(`  description: ${metadata.description}\n`);
+  }
   if (metadata.summary) {
     process.stdout.write(`  summary: ${metadata.summary}\n`);
   }

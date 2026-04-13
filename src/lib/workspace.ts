@@ -547,6 +547,7 @@ type: process
 status: active
 tags:
   - example
+description: Short routing description for agents.
 ---
 \`\`\`
 `;

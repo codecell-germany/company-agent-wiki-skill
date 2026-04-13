@@ -21,7 +21,7 @@ This package now targets a shared `~/.agents` home first so the same published p
 - The private workspace may be the current dedicated local folder; it just must not be the public skill/CLI repo.
 - The human should provide the workspace path at least once and, if desired, the private Git remote URL. After setup or manual registration, the CLI stores the workspace path in a global per-user registry so later agents can resolve it automatically.
 - Runtime discovery matters. Before relying on the CLI, verify which path is actually available.
-- The primary shared install target is `~/.agents`. Codex additionally gets a compatibility mirror under `~/.codex`.
+- The primary shared install target is `~/.agents`. Codex should only need the compatibility shim under `~/.codex/bin`, not a duplicate second skill payload.
 - The preferred one-command installer path is `npx -y -p @codecell-germany/company-agent-wiki-skill company-agent-wiki-skill install --force`. This only works after the npm package is really published.
 - If the binary is not already installed in PATH, use these fallbacks in this order:
 
@@ -157,6 +157,7 @@ status: draft
 tags:
   - projekt
   - alpha
+description: Klare Kurzbeschreibung für Agenten, bevor der Volltext geladen wird.
 summary: Roadmap und Entscheidungen für Projekt Alpha.
 project: alpha
 department: entwicklung
@@ -173,7 +174,7 @@ Empfohlener Ablauf:
 
 1. Datei unter `knowledge/canonical/` oder einem anderen registrierten Managed Root anlegen.
 2. Dateiname so wählen, dass er den Inhalt grob repräsentiert, etwa `projekt-alpha-roadmap.md`.
-3. Front Matter inklusive `id`, `summary` und passenden Routing-Feldern setzen.
+3. Front Matter inklusive `id`, `description`, `summary` und passenden Routing-Feldern setzen.
 4. Wenn der Inhalt auf externer Recherche basiert, Provenienz ergänzen:
    - Quellenstand oder Prüfdokumentation im Dokument
    - Datum der Prüfung
@@ -217,6 +218,7 @@ tags:
   - crm
   - partner
   - netzwerk
+description: Kurzbeschreibung der Beziehung und ihrer Relevanz für Agenten.
 summary: Rolle, Status und Relevanz des Partners im CodeCell-Netzwerk.
 department: vertrieb
 owners:

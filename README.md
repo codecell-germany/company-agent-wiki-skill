@@ -11,7 +11,7 @@
 `company-agent-wiki-skill` is an agent-first local company knowledge toolkit.
 It ships as a real CLI plus a shared agent skill payload, so an agent can set up a private company wiki, verify the index state, search knowledge, inspect metadata and headings first, and only then load full Markdown when needed.
 
-The shared install layout is meant to work across agent environments that understand the common `~/.agents` skill home, including Codex through its compatibility mirror and other skills.sh-style runtimes such as Claude Code or OpenClaw.
+The shared install layout is meant to work across agent environments that understand the common `~/.agents` skill home, including Codex through a compatibility shim and other skills.sh-style runtimes such as Claude Code or OpenClaw.
 
 The product surface is the public CLI:
 
@@ -46,6 +46,16 @@ The retrieval model is deliberately inspired by Anthropic's Agent Skills model w
 The difference is the retrieval layer.
 Here, front matter is not only stored in Markdown files, but also indexed and filterable through a local SQLite search layer.
 
+## Architecture visuals
+
+### Agentic knowledge ingestion
+
+![Agentic knowledge ingestion](https://cdn.codecell.de/codecell-intern/company-agent-wiki/data-ingestion.jpg)
+
+### Agent-first knowledge retrieval
+
+![Agent-first knowledge retrieval](https://cdn.codecell.de/codecell-intern/company-agent-wiki/data-retrieval.jpg)
+
 ## Installation
 
 ### 1. Install with one command
@@ -61,9 +71,10 @@ That installs:
 - the shared skill payload into `~/.agents/skills/company-agent-wiki-cli`
 - the shared runtime into `~/.agents/tools/company-agent-wiki-cli`
 - the shared CLI shim into `~/.agents/bin/company-agent-wiki-cli`
-- the skill payload into `~/.codex/skills/company-agent-wiki-cli`
-- the runtime into `~/.codex/tools/company-agent-wiki-cli`
 - the Codex compatibility shim into `~/.codex/bin/company-agent-wiki-cli`
+
+The skill payload intentionally exists only once under `~/.agents/skills`.
+Codex gets a CLI compatibility shim, but not a second duplicate skill payload.
 
 ### 2. Verify the CLI
 
@@ -205,6 +216,7 @@ status: draft
 tags:
   - projekt
   - alpha
+description: Klare Kurzbeschreibung für Agenten, bevor der Volltext geladen wird.
 summary: Roadmap und Entscheidungen für Projekt Alpha.
 project: alpha
 department: entwicklung
@@ -219,7 +231,7 @@ Recommended authoring order:
 
 1. Create the Markdown file inside `knowledge/canonical/` or another registered managed root.
 2. Use a filename that roughly describes the real content.
-3. Set front matter including `id`, `summary` and the routing fields that matter.
+3. Set front matter including `id`, `description`, `summary` and the routing fields that matter.
 4. If the content depends on external sources, document provenance, date and source type.
 5. Structure the file with clear `#`, `##` and `###` headings.
 6. Rebuild the index or use an `--auto-rebuild` retrieval path.

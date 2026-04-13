@@ -34,6 +34,7 @@ status: draft
 tags:
   - projekt
   - alpha
+description: Klare Kurzbeschreibung für Agenten, bevor der Volltext geladen wird.
 summary: Roadmap und Entscheidungen für Projekt Alpha.
 project: alpha
 department: entwicklung
@@ -52,6 +53,7 @@ systems:
 - `type`: z. B. `project`, `process`, `policy`, `guide`, `note`
 - `status`: z. B. `draft`, `active`, `archived`
 - `tags`: freie Schlagwörter
+- `description`: kurze Pflichtbeschreibung für Agenten-Routing und Metadata-First-Reads
 - `summary`: kurze 1-Zeilen-Zusammenfassung für Agenten-Routing
 - `project`: Projektkennung oder Projektslug
 - `department`: Abteilung oder Verantwortungsbereich
@@ -65,6 +67,7 @@ Wenn Wissen aus Webrecherche, Nutzerangaben, E-Mails oder anderen externen Quell
 
 Empfohlen:
 
+- `description` im Front Matter als sofort sichtbare Kurzbeschreibung
 - `summary` im Front Matter für die Kurzbeschreibung
 - im Dokument ein Abschnitt `## Quellenstand`
 - Prüfdaten oder Prüfdatum
@@ -92,7 +95,7 @@ Beispiel:
 
 1. Dokument im passenden Managed Root anlegen, meist unter `knowledge/canonical/`.
 2. Dateinamen so wählen, dass er `title` und Inhalt grob repräsentiert.
-3. Front Matter setzen, idealerweise inklusive `id`.
+3. Front Matter setzen, idealerweise inklusive `id`, `description` und `summary`.
 4. Bei externem Wissen Provenienz ergänzen.
 5. Abschnitte schreiben.
 6. `company-agent-wiki-cli index rebuild --workspace /absolute/path --json` ausführen.
@@ -147,6 +150,7 @@ tags:
   - crm
   - partner
   - netzwerk
+description: Kurzbeschreibung der Beziehung und ihrer Relevanz für Agenten.
 summary: Rolle, Status und Relevanz des Partners im CodeCell-Netzwerk.
 department: vertrieb
 owners:

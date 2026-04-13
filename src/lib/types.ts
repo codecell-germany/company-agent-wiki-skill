@@ -135,6 +135,7 @@ export interface DocumentMetadataView {
   docType?: string;
   status?: string;
   tags: string[];
+  description?: string;
   summary?: string;
   project?: string;
   department?: string;

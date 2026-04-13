@@ -311,6 +311,8 @@ function buildDocumentMetadataView(row: {
 }): DocumentMetadataView {
   const frontmatter = JSON.parse(row.frontmatterJson) as Record<string, unknown>;
   const tags = JSON.parse(row.tagsJson) as string[];
+  const description = normalizeStringValue(frontmatter.description) ?? normalizeStringValue(frontmatter.summary);
+  const summary = normalizeStringValue(frontmatter.summary) ?? description;
 
   return {
     docId: row.docId,
@@ -320,7 +322,8 @@ function buildDocumentMetadataView(row: {
     docType: row.docType ?? undefined,
     status: row.status ?? undefined,
     tags,
-    summary: normalizeStringValue(frontmatter.summary),
+    description,
+    summary,
     project: normalizeStringValue(frontmatter.project),
     department: normalizeStringValue(frontmatter.department),
     owners: normalizeStringArrayValue(frontmatter.owners),

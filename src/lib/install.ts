@@ -64,10 +64,11 @@ type InstallTarget = "agents" | "codex";
 
 interface InstallLocation {
   target: InstallTarget;
+  mode: "full" | "shim-only";
   home: string;
   binDir: string;
-  runtimeDir: string;
-  skillDir: string;
+  runtimeDir?: string;
+  skillDir?: string;
   shimPath: string;
   shimInPath: boolean;
   pathHint?: string;
@@ -108,10 +109,46 @@ function installIntoHome(target: InstallTarget, home: string, packageRoot: strin
 
   return {
     target,
+    mode: "full",
     home,
     binDir,
     runtimeDir,
     skillDir,
+    shimPath,
+    shimInPath: (process.env.PATH || "").split(path.delimiter).includes(binDir),
+    pathHint: (process.env.PATH || "").split(path.delimiter).includes(binDir)
+      ? undefined
+      : `The shim exists, but ${binDir} is not in PATH. Use "${shimPath}" directly or add ${binDir} to PATH.`
+  };
+}
+
+function installCompatibilityShim(target: InstallTarget, home: string, runtimeHome: string, force = false): InstallLocation {
+  const runtimeDir = path.join(runtimeHome, "tools", SKILL_NAME);
+  const runtimeScript = path.join(runtimeDir, "dist", "index.js");
+  if (!fs.existsSync(runtimeScript)) {
+    throw new Error(`Cannot create compatibility shim because runtime is missing: ${runtimeScript}`);
+  }
+
+  const binDir = path.join(home, "bin");
+  const shimPath = path.join(binDir, CLI_NAME);
+  const legacyRuntimeDir = path.join(home, "tools", SKILL_NAME);
+  const legacySkillDir = path.join(home, "skills", SKILL_NAME);
+
+  if (force) {
+    fs.rmSync(legacyRuntimeDir, { recursive: true, force: true });
+    fs.rmSync(legacySkillDir, { recursive: true, force: true });
+    fs.rmSync(shimPath, { force: true });
+  }
+
+  ensureDir(binDir);
+  writeShim(shimPath, runtimeScript);
+
+  return {
+    target,
+    mode: "shim-only",
+    home,
+    binDir,
+    runtimeDir,
     shimPath,
     shimInPath: (process.env.PATH || "").split(path.delimiter).includes(binDir),
     pathHint: (process.env.PATH || "").split(path.delimiter).includes(binDir)
@@ -160,7 +197,11 @@ export function installIntoAgentHomes(options?: {
   if (target === "codex" || target === "all") {
     const shouldSkipCodex = installs.some((entry) => entry.home === codexHome);
     if (!shouldSkipCodex) {
-      installs.push(installIntoHome("codex", codexHome, packageRoot, options?.force));
+      if (target === "codex") {
+        installs.push(installIntoHome("codex", codexHome, packageRoot, options?.force));
+      } else {
+        installs.push(installCompatibilityShim("codex", codexHome, agentsHome, options?.force));
+      }
     }
   }
 

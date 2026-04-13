@@ -46,7 +46,7 @@ The index and manifest are derived artifacts and should stay ignored in the priv
 8. `search`, `route` and `read` either enforce a fresh index or can explicitly auto-rebuild when `--auto-rebuild` is set.
 9. Runtime commands may detect the current workspace automatically when the shell is already inside a private workspace.
 10. A global per-user workspace registry stores known workspace paths and a default workspace so other agents can resolve the knowledge location automatically on macOS, Windows and Linux.
-11. The installer now targets a shared `~/.agents` home as the primary skill/runtime location and also installs a Codex compatibility mirror under `~/.codex`.
+11. The installer now targets a shared `~/.agents` home as the primary skill/runtime location and adds a Codex compatibility shim under `~/.codex/bin`.
 12. `serve` exposes the same read-only data through a local web view and now distinguishes `missing`, `stale` and `ok` states with a rebuild action.
 
 ## Onboarding Model
@@ -85,6 +85,8 @@ Phase 1 now explicitly supports a two-step retrieval model:
 2. metadata and heading inspection before full document reads
 
 This keeps the agent loop lighter and encourages stronger filenames plus front matter without forcing a rigid folder taxonomy.
+
+The preferred front-matter contract now includes both `description` and `summary`, so agents can inspect a short routing description before deciding whether to load full Markdown content.
 
 ## Global Workspace Discovery
 

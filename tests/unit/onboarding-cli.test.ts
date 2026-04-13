@@ -142,8 +142,13 @@ describe("onboarding company CLI", () => {
     expect(install.status).toBe(0);
     const payload = JSON.parse(install.stdout);
     expect(payload.data.installs).toHaveLength(2);
+    expect(payload.data.installs[0].mode).toBe("full");
+    expect(payload.data.installs[1].mode).toBe("shim-only");
     expect(fs.existsSync(path.join(agentsHome, "bin", "company-agent-wiki-cli"))).toBe(true);
     expect(fs.existsSync(path.join(codexHome, "bin", "company-agent-wiki-cli"))).toBe(true);
+    expect(fs.existsSync(path.join(agentsHome, "skills", "company-agent-wiki-cli", "SKILL.md"))).toBe(true);
+    expect(fs.existsSync(path.join(codexHome, "skills", "company-agent-wiki-cli"))).toBe(false);
+    expect(fs.existsSync(path.join(codexHome, "tools", "company-agent-wiki-cli"))).toBe(false);
 
     const about = spawnSync(path.join(agentsHome, "bin", "company-agent-wiki-cli"), ["about", "--json"], {
       cwd: repoRoot,
@@ -294,6 +299,7 @@ owners:
   - nikolas-gottschol
 systems:
   - linear
+description: Klare Kurzbeschreibung für Agenten vor dem Volltext-Read.
 summary: Roadmap und Entscheidungen für Projekt Alpha.
 ---
 # Projekt Alpha Roadmap
@@ -343,6 +349,8 @@ Das Budget ist knapp.
     const readPayload = JSON.parse(metadataRead.stdout);
     expect(readPayload.data.metadata.docType).toBe("project");
     expect(readPayload.data.metadata.department).toBe("entwicklung");
+    expect(readPayload.data.metadata.description).toContain("Kurzbeschreibung für Agenten");
+    expect(readPayload.data.metadata.summary).toContain("Roadmap und Entscheidungen");
     expect(readPayload.data.headings.some((item: { headingPath: string }) => item.headingPath === "Projekt Alpha Roadmap > Ziele")).toBe(true);
   });
 

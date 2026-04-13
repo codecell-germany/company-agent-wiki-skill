@@ -148,6 +148,7 @@ owners:
   - nikolas-gottschol
 systems:
   - linear
+description: Klare Kurzbeschreibung des Projektstatus für Agenten.
 summary: Roadmap und nächste Schritte für Projekt Alpha.
 ---
 # Projekt Alpha Roadmap
@@ -172,6 +173,7 @@ owners:
   - accounting-team
 systems:
   - sevdesk
+description: Kurzbeschreibung des AWS-Buchungsprozesses für Agenten.
 summary: Buchungsprozess für AWS-Rechnungen.
 ---
 # AWS Eingangsrechnung buchen
@@ -193,6 +195,7 @@ Die Buchhaltung verarbeitet AWS-Rechnungen monatlich.
     expect(result.results).toHaveLength(1);
     expect(result.results[0]?.metadata.project).toBe("alpha");
     expect(result.results[0]?.metadata.department).toBe("entwicklung");
+    expect(result.results[0]?.metadata.description).toContain("Projektstatus");
     expect(result.results[0]?.metadata.summary).toContain("Projekt Alpha");
   });
 });
