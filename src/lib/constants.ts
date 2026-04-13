@@ -7,8 +7,10 @@ export const WORKSPACE_INTERNAL_DIR = ".company-agent-wiki";
 export const WORKSPACE_CONFIG_FILE = "workspace.json";
 export const INDEX_DB_FILE = "index.sqlite";
 export const INDEX_MANIFEST_FILE = "index-manifest.json";
+export const GLOBAL_REGISTRY_DIR_NAME = "company-agent-wiki";
+export const GLOBAL_REGISTRY_FILE = "workspaces.json";
 export const WORKSPACE_LAYOUT_VERSION = 1;
-export const CLI_SCHEMA_VERSION = "2026-04-12";
+export const CLI_SCHEMA_VERSION = "2026-04-13";
 export const INDEX_SCHEMA_VERSION = 1;
 
 export const DEFAULT_MANAGED_ROOT_ID = "canonical";
@@ -25,5 +27,6 @@ export const EXIT_CODES = {
   notFound: 6,
   git: 7,
   sqliteLocked: 8,
+  workspaceBusy: 9,
   runtime: 10
 } as const;

@@ -7,6 +7,10 @@
 "$HOME/.codex/bin/company-agent-wiki-cli" --help
 company-agent-wiki-cli about --json
 company-agent-wiki-cli setup workspace --workspace /absolute/path --git-init
+company-agent-wiki-cli workspace current --json
+company-agent-wiki-cli workspace list --json
+company-agent-wiki-cli workspace register --workspace /absolute/path --default --json
+company-agent-wiki-cli workspace use --workspace /absolute/path --json
 company-agent-wiki-cli onboarding company
 company-agent-wiki-cli onboarding company --workspace /absolute/path --answers-file /absolute/path/to/answers.json
 company-agent-wiki-cli onboarding company --workspace /absolute/path --answers-file /absolute/path/to/answers.json --execute
@@ -23,6 +27,7 @@ company-agent-wiki-cli verify --workspace /absolute/path --json
 ```
 
 If you are already inside the private workspace, `doctor`, `verify`, `search`, `route`, `read`, `history`, `diff` and `serve` may omit `--workspace`.
+If not, the CLI can also use the globally registered default workspace.
 
 ## Retrieval
 

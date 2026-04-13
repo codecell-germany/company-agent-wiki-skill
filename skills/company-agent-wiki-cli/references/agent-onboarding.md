@@ -7,6 +7,8 @@
 "$HOME/.codex/bin/company-agent-wiki-cli" --help
 company-agent-wiki-cli --help
 company-agent-wiki-cli setup workspace --workspace /absolute/path --git-init
+company-agent-wiki-cli workspace current --json
+company-agent-wiki-cli workspace list --json
 company-agent-wiki-cli onboarding company
 company-agent-wiki-cli onboarding company --workspace /absolute/path --answers-file /absolute/path/to/answers.json
 company-agent-wiki-cli onboarding company --workspace /absolute/path --answers-file /absolute/path/to/answers.json --execute
@@ -23,6 +25,8 @@ Only after the company profile is clear enough and these checks succeed should y
 ```bash
 company-agent-wiki-cli setup workspace --workspace /absolute/path --git-init
 ```
+
+This setup step also registers the workspace globally so later agents can find it without asking for the same path again.
 
 If the human has a private Git remote ready:
 
@@ -48,6 +52,8 @@ For frequent edits, the authoring loop can also use the guarded auto-rebuild pat
 ```bash
 company-agent-wiki-cli search "KI-Telefonassistent" --workspace /absolute/path --auto-rebuild --json
 ```
+
+Parallel reads are allowed. If a write path such as `index rebuild` is already running, later writes wait behind the same workspace lock.
 
 After candidate routing, prefer metadata-first reading:
 

@@ -24,6 +24,29 @@ export interface WorkspaceConfig {
   };
 }
 
+export interface RegisteredWorkspace {
+  workspaceId: string;
+  path: string;
+  label: string;
+  registeredAt: string;
+  lastUsedAt: string;
+  source: "setup" | "manual" | "runtime" | "detected";
+}
+
+export interface GlobalWorkspaceRegistry {
+  schemaVersion: number;
+  updatedAt: string;
+  defaultWorkspace?: string;
+  workspaces: RegisteredWorkspace[];
+}
+
+export interface ResolvedWorkspaceSelection {
+  workspaceRoot?: string;
+  source?: "explicit" | "cwd" | "global-default" | "single-registered";
+  registryPath: string;
+  defaultWorkspace?: string;
+}
+
 export interface RootSnapshot {
   id: string;
   path: string;

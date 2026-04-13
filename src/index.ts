@@ -19,21 +19,35 @@ import {
 import { applyCompanyOnboarding, COMPANY_ONBOARDING_DE_V1, previewCompanyOnboarding, renderOnboardingMarkdown } from "./lib/onboarding";
 import { envelope, errorEnvelope, printJson } from "./lib/output";
 import { startServer } from "./lib/server";
-import { addRoot, detectWorkspaceRoot, doctor, getDefaultCodexHome, listRoots, setupWorkspace } from "./lib/workspace";
+import {
+  addRoot,
+  detectWorkspaceRoot,
+  doctor,
+  getDefaultCodexHome,
+  getGlobalRegistryPath,
+  listRegisteredWorkspaces,
+  listRoots,
+  registerWorkspaceGlobally,
+  rememberWorkspaceGlobally,
+  resolveWorkspaceSelection,
+  setupWorkspace
+} from "./lib/workspace";
 import type { DocumentHeadingView, DocumentMetadataView, SearchFilters } from "./lib/types";
 
 function assertWorkspace(workspacePath: string | undefined): string {
   if (workspacePath?.trim()) {
-    return path.resolve(workspacePath);
+    const resolved = path.resolve(workspacePath);
+    rememberWorkspaceGlobally(resolved, { setDefault: true, source: "runtime" });
+    return resolved;
   }
 
-  const detected = detectWorkspaceRoot(process.cwd());
-  if (detected) {
-    return detected;
+  const selection = resolveWorkspaceSelection(process.cwd());
+  if (selection.workspaceRoot) {
+    return selection.workspaceRoot;
   }
 
   throw new CliError("WORKSPACE_REQUIRED", "Missing --workspace option and no workspace was detected from the current directory.", EXIT_CODES.usage, {
-    hint: "Pass --workspace /absolute/path or run the command from a directory inside the private workspace."
+    hint: `Pass --workspace /absolute/path, run the command from a directory inside the private workspace, or register one globally in ${getGlobalRegistryPath()}.`
   });
 }
 
@@ -121,14 +135,16 @@ program
   .option("--json", "Emit JSON output", false)
   .action((options) => {
     const codexHome = getDefaultCodexHome();
-    const data = {
-      packageName: PACKAGE_NAME,
-      cliName: CLI_NAME,
-      schemaVersion: CLI_SCHEMA_VERSION,
-      codexHome,
-      codexShimPath: path.join(codexHome, "bin", CLI_NAME),
-      cwdWorkspace: detectWorkspaceRoot(process.cwd()) || null
-    };
+      const data = {
+        packageName: PACKAGE_NAME,
+        cliName: CLI_NAME,
+        schemaVersion: CLI_SCHEMA_VERSION,
+        codexHome,
+        codexShimPath: path.join(codexHome, "bin", CLI_NAME),
+        cwdWorkspace: detectWorkspaceRoot(process.cwd()) || null,
+        globalRegistryPath: getGlobalRegistryPath(),
+        resolvedWorkspace: resolveWorkspaceSelection(process.cwd())
+      };
 
     if (options.json) {
       printJson(envelope("about", data));
@@ -141,7 +157,120 @@ program
     if (data.cwdWorkspace) {
       process.stdout.write(`  detected workspace: ${data.cwdWorkspace}\n`);
     }
+    if (data.resolvedWorkspace.workspaceRoot && data.resolvedWorkspace.source !== "cwd") {
+      process.stdout.write(`  resolved workspace: ${data.resolvedWorkspace.workspaceRoot} (${data.resolvedWorkspace.source})\n`);
+    }
+    process.stdout.write(`  global registry: ${data.globalRegistryPath}\n`);
   });
+
+const workspace = new Command("workspace").description("Manage global workspace discovery");
+
+workspace
+  .command("current")
+  .description("Show the currently resolved workspace and discovery source")
+  .option("--json", "Emit JSON output", false)
+  .action((options) => {
+    const selection = resolveWorkspaceSelection(process.cwd());
+    const data = {
+      workspaceRoot: selection.workspaceRoot || null,
+      source: selection.source || null,
+      registryPath: selection.registryPath,
+      defaultWorkspace: selection.defaultWorkspace || null
+    };
+
+    if (options.json) {
+      printJson(envelope("workspace current", data));
+      return;
+    }
+
+    if (data.workspaceRoot) {
+      process.stdout.write(`Resolved workspace: ${data.workspaceRoot}\n`);
+      process.stdout.write(`Source: ${data.source}\n`);
+    } else {
+      process.stdout.write("No workspace resolved.\n");
+    }
+    process.stdout.write(`Global registry: ${data.registryPath}\n`);
+    if (data.defaultWorkspace) {
+      process.stdout.write(`Default workspace: ${data.defaultWorkspace}\n`);
+    }
+  });
+
+workspace
+  .command("list")
+  .description("List globally registered workspaces")
+  .option("--json", "Emit JSON output", false)
+  .action((options) => {
+    const result = listRegisteredWorkspaces();
+    if (options.json) {
+      printJson(envelope("workspace list", result));
+      return;
+    }
+
+    process.stdout.write(`Global registry: ${result.registryPath}\n`);
+    if (result.workspaces.length === 0) {
+      process.stdout.write("No registered workspaces.\n");
+      return;
+    }
+
+    for (const item of result.workspaces) {
+      const defaultMarker = result.defaultWorkspace === item.path ? " [default]" : "";
+      const existsMarker = item.exists ? "" : " [missing]";
+      process.stdout.write(`- ${item.label}${defaultMarker}${existsMarker}\n`);
+      process.stdout.write(`  ${item.path}\n`);
+    }
+  });
+
+workspace
+  .command("register")
+  .description("Register an existing workspace globally for other agents")
+  .requiredOption("--workspace <path>", "Absolute or relative workspace path")
+  .option("--default", "Also mark this workspace as the global default", false)
+  .option("--json", "Emit JSON output", false)
+  .action((options) => {
+    const entry = registerWorkspaceGlobally(path.resolve(options.workspace), {
+      setDefault: Boolean(options.default),
+      source: "manual"
+    });
+    const result = {
+      registryPath: getGlobalRegistryPath(),
+      entry
+    };
+
+    if (options.json) {
+      printJson(envelope("workspace register", result));
+      return;
+    }
+
+    process.stdout.write(`Registered workspace: ${entry.path}\n`);
+    if (options.default) {
+      process.stdout.write("This workspace is now the global default.\n");
+    }
+  });
+
+workspace
+  .command("use")
+  .description("Set a registered workspace as the global default")
+  .requiredOption("--workspace <path>", "Absolute or relative workspace path")
+  .option("--json", "Emit JSON output", false)
+  .action((options) => {
+    const entry = registerWorkspaceGlobally(path.resolve(options.workspace), {
+      setDefault: true,
+      source: "manual"
+    });
+    const result = {
+      registryPath: getGlobalRegistryPath(),
+      defaultWorkspace: entry.path
+    };
+
+    if (options.json) {
+      printJson(envelope("workspace use", result));
+      return;
+    }
+
+    process.stdout.write(`Global default workspace: ${entry.path}\n`);
+  });
+
+program.addCommand(workspace);
 
 program
   .command("setup")

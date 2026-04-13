@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import type { SpawnSyncReturns } from "node:child_process";
 
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
@@ -12,6 +12,7 @@ const repoRoot = process.cwd();
 const cliPath = path.join(repoRoot, "dist/index.js");
 const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
 const tempPaths: string[] = [];
+const originalConfigHome = process.env.COMPANY_AGENT_WIKI_CONFIG_HOME;
 
 function createTempWorkspace(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), "company-agent-wiki-cli-test-"));
@@ -41,8 +42,32 @@ function writeAnswersFile(workspaceRoot: string): string {
 function runCli(args: string[]): SpawnSyncReturns<string> {
   return spawnSync(process.execPath, [cliPath, ...args], {
     cwd: repoRoot,
-    encoding: "utf8"
+    encoding: "utf8",
+    env: process.env
   }) as SpawnSyncReturns<string>;
+}
+
+function runCliAsync(args: string[], env?: NodeJS.ProcessEnv): Promise<{ code: number | null; stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [cliPath, ...args], {
+      cwd: repoRoot,
+      env: env || process.env,
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (chunk) => {
+      stdout += String(chunk);
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += String(chunk);
+    });
+    child.on("error", reject);
+    child.on("close", (code) => {
+      resolve({ code, stdout, stderr });
+    });
+  });
 }
 
 beforeAll(() => {
@@ -53,6 +78,12 @@ beforeAll(() => {
 });
 
 afterEach(() => {
+  if (originalConfigHome === undefined) {
+    delete process.env.COMPANY_AGENT_WIKI_CONFIG_HOME;
+  } else {
+    process.env.COMPANY_AGENT_WIKI_CONFIG_HOME = originalConfigHome;
+  }
+
   while (tempPaths.length > 0) {
     const target = tempPaths.pop();
     if (target && fs.existsSync(target)) {
@@ -95,6 +126,38 @@ describe("onboarding company CLI", () => {
     }) as SpawnSyncReturns<string>;
     expect(about.status).toBe(0);
     expect(fs.realpathSync(JSON.parse(about.stdout).data.cwdWorkspace)).toBe(fs.realpathSync(workspaceRoot));
+  });
+
+  it("can resolve a globally registered workspace outside the workspace directory", () => {
+    const tempRoot = createTempWorkspace();
+    tempPaths.push(tempRoot);
+    const workspaceRoot = path.join(tempRoot, "workspace");
+    const registryHome = path.join(tempRoot, "global-registry");
+    fs.mkdirSync(registryHome, { recursive: true });
+    process.env.COMPANY_AGENT_WIKI_CONFIG_HOME = registryHome;
+
+    setupWorkspace({ workspaceRoot, gitInit: false });
+
+    const current = spawnSync(process.execPath, [cliPath, "workspace", "current", "--json"], {
+      cwd: tempRoot,
+      encoding: "utf8",
+      env: process.env
+    }) as SpawnSyncReturns<string>;
+
+    expect(current.status).toBe(0);
+    const currentPayload = JSON.parse(current.stdout);
+    expect(fs.realpathSync(currentPayload.data.workspaceRoot)).toBe(fs.realpathSync(workspaceRoot));
+    expect(currentPayload.data.source).toBe("global-default");
+
+    const verify = spawnSync(process.execPath, [cliPath, "verify", "--json"], {
+      cwd: tempRoot,
+      encoding: "utf8",
+      env: process.env
+    }) as SpawnSyncReturns<string>;
+
+    expect(verify.status).toBe(0);
+    const verifyPayload = JSON.parse(verify.stdout);
+    expect(verifyPayload.data.state).toBe("missing");
   });
 
   it("renders the questionnaire in text and JSON mode", () => {
@@ -255,6 +318,68 @@ Das Budget ist knapp.
     expect(readPayload.data.metadata.docType).toBe("project");
     expect(readPayload.data.metadata.department).toBe("entwicklung");
     expect(readPayload.data.headings.some((item: { headingPath: string }) => item.headingPath === "Projekt Alpha Roadmap > Ziele")).toBe(true);
+  });
+
+  it("serializes concurrent auto-rebuild writers while allowing both search commands to succeed", async () => {
+    const tempRoot = createTempWorkspace();
+    tempPaths.push(tempRoot);
+    const workspaceRoot = path.join(tempRoot, "workspace");
+    setupWorkspace({ workspaceRoot, gitInit: false });
+    const documentPath = path.join(workspaceRoot, "knowledge/canonical", "parallel-suche.md");
+    fs.writeFileSync(
+      documentPath,
+      `---
+title: Parallele Suche
+type: note
+status: draft
+---
+# Parallele Suche
+
+Erster Stand.
+`
+    );
+
+    const firstBuild = runCli(["index", "rebuild", "--workspace", workspaceRoot, "--json"]);
+    expect(firstBuild.status).toBe(0);
+
+    fs.writeFileSync(
+      documentPath,
+      `---
+title: Parallele Suche
+type: note
+status: draft
+---
+# Parallele Suche
+
+Parallel lesbare Aktualisierung.
+`
+    );
+
+    const firstSearchPromise = runCliAsync(
+      ["search", "Aktualisierung", "--workspace", workspaceRoot, "--auto-rebuild", "--json"],
+      {
+        ...process.env,
+        COMPANY_AGENT_WIKI_TEST_WRITE_LOCK_DELAY_MS: "500"
+      }
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    const secondSearchPromise = runCliAsync([
+      "search",
+      "Aktualisierung",
+      "--workspace",
+      workspaceRoot,
+      "--auto-rebuild",
+      "--json"
+    ]);
+
+    const [firstSearch, secondSearch] = await Promise.all([firstSearchPromise, secondSearchPromise]);
+
+    expect(firstSearch.code).toBe(0);
+    expect(secondSearch.code).toBe(0);
+    expect(JSON.parse(firstSearch.stdout).data.results.length).toBeGreaterThan(0);
+    expect(JSON.parse(secondSearch.stdout).data.results.length).toBeGreaterThan(0);
   });
 
   it("enforces onboarding flag guards", () => {

@@ -4,8 +4,9 @@ import path from "node:path";
 import { DEFAULT_MANAGED_ROOT_ID, EXIT_CODES } from "./constants";
 import { CliError } from "./errors";
 import { ensureDir, readJsonFile, replaceFileAtomic } from "./fs-utils";
-import { rebuildIndex } from "./indexer";
+import { rebuildIndexUnlocked } from "./indexer";
 import { loadWorkspaceConfig, resolveRootPath } from "./workspace";
+import { withWorkspaceWriteLock } from "./write-lock";
 
 export interface OnboardingSource {
   label: string;
@@ -1066,36 +1067,38 @@ export function applyCompanyOnboarding(options: {
   let indexBuildId: string | undefined;
 
   if (options.execute) {
-    const seenPaths = new Set<string>();
-    for (const document of preview.documents) {
-      if (seenPaths.has(document.absPath)) {
-        throw new CliError(
-          "ONBOARDING_TARGET_CONFLICT",
-          `Multiple onboarding documents resolve to the same target path: ${document.relPath}`,
-          EXIT_CODES.validation
-        );
-      }
-      seenPaths.add(document.absPath);
+    const manifest = withWorkspaceWriteLock(workspaceRoot, "onboarding-apply", () => {
+      const seenPaths = new Set<string>();
+      for (const document of preview.documents) {
+        if (seenPaths.has(document.absPath)) {
+          throw new CliError(
+            "ONBOARDING_TARGET_CONFLICT",
+            `Multiple onboarding documents resolve to the same target path: ${document.relPath}`,
+            EXIT_CODES.validation
+          );
+        }
+        seenPaths.add(document.absPath);
 
-      if (document.existed && !options.force) {
-        throw new CliError(
-          "ONBOARDING_TARGET_EXISTS",
-          `Target file already exists: ${document.relPath}`,
-          EXIT_CODES.validation,
-          { hint: "Use --force to overwrite generated onboarding files." }
-        );
+        if (document.existed && !options.force) {
+          throw new CliError(
+            "ONBOARDING_TARGET_EXISTS",
+            `Target file already exists: ${document.relPath}`,
+            EXIT_CODES.validation,
+            { hint: "Use --force to overwrite generated onboarding files." }
+          );
+        }
       }
-    }
 
-    for (const document of preview.documents) {
-      ensureDir(path.dirname(document.absPath));
-      if (document.existed) {
-        warnings.push(`Overwriting existing file: ${document.relPath}`);
+      for (const document of preview.documents) {
+        ensureDir(path.dirname(document.absPath));
+        if (document.existed) {
+          warnings.push(`Overwriting existing file: ${document.relPath}`);
+        }
+        replaceFileAtomic(document.absPath, document.content);
       }
-      replaceFileAtomic(document.absPath, document.content);
-    }
 
-    const manifest = rebuildIndex(workspaceRoot);
+      return rebuildIndexUnlocked(workspaceRoot);
+    });
     indexBuildId = manifest.buildId;
   }
 

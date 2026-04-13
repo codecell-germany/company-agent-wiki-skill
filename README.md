@@ -59,6 +59,12 @@ The private knowledge workspace lives outside this public code repository. It ma
 The SQLite index is local and derived. It is rebuilt by the CLI and must not be treated as the source of truth.
 It lives inside the private workspace under `.company-agent-wiki/index.sqlite`, but it is intentionally kept out of Git by default because it is rebuildable, binary and noisy in diffs.
 
+The workspace path can also be stored globally for other agents. Phase 1 now keeps a per-user workspace registry:
+
+- macOS: `~/Library/Application Support/company-agent-wiki/workspaces.json`
+- Windows: `%APPDATA%\\company-agent-wiki\\workspaces.json`
+- Linux: `${XDG_CONFIG_HOME:-~/.config}/company-agent-wiki/workspaces.json`
+
 ## Install
 
 ```bash
@@ -107,6 +113,8 @@ company-agent-wiki-cli setup workspace \
   --git-remote git@github.com:your-org/private-company-knowledge.git
 ```
 
+This now also registers the workspace globally and marks it as the default for later agents.
+
 3. Inspect the local state:
 
 ```bash
@@ -138,6 +146,16 @@ company-agent-wiki-cli serve --workspace /absolute/path/to/private-company-knowl
 The read-only web view is served by the installed CLI process. The private workspace itself contains Markdown, metadata and the local derived index, but no standalone frontend application.
 
 If the current shell is already inside a private workspace, runtime commands such as `doctor`, `verify`, `search`, `route`, `read`, `history`, `diff` and `serve` may omit `--workspace`.
+If not, the CLI can now also fall back to the globally registered default workspace.
+
+Useful discovery commands:
+
+```bash
+company-agent-wiki-cli workspace current --json
+company-agent-wiki-cli workspace list --json
+company-agent-wiki-cli workspace register --workspace /absolute/path/to/private-company-knowledge --default --json
+company-agent-wiki-cli workspace use --workspace /absolute/path/to/private-company-knowledge --json
+```
 
 By default `setup workspace` also creates starter Markdown documents such as `wiki-start-here.md`, `company-profile.md`, `organisation-und-rollen.md`, `systeme-und-tools.md`, `kernprozesse.md`, `projekte-und-roadmap.md` and `glossar.md`. Use `--no-starter-docs` only if you intentionally want an almost empty scaffold.
 
@@ -169,15 +187,16 @@ This repository is publishable code only. It must never contain:
 
 The actual knowledge workspace is separate and private. The human must provide:
 
-- the private workspace path
+- the private workspace path at least once
 - if desired, the private Git remote URL
 - access rights to that remote
 
-The agent can handle local scaffolding, root registration and index rebuilds, but it should not invent remotes or inject private data into this repository.
+The agent can handle local scaffolding, root registration, global workspace registration and index rebuilds, but it should not invent remotes or inject private data into this repository.
 
 ## Phase 1 Commands
 
 - `setup workspace`: scaffold a private workspace and optionally initialize Git
+- `workspace current|list|register|use`: inspect or manage the global workspace registry for other agents
 - `doctor`: inspect the local runtime and workspace state
 - `verify`: check whether the current roots still match the indexed snapshot
 - `roots add`: register another local Markdown root
@@ -247,7 +266,7 @@ Then:
 
 ## Concurrency Note
 
-The SQLite index is intentionally local and rebuildable. For the same workspace, avoid running multiple `search`, `route`, `read`, `history` and `diff` calls in parallel when possible. The CLI now uses a busy timeout and a lock-specific error, but agent-side serialization is still the safer Phase-1 operating mode.
+The SQLite index is intentionally local and rebuildable. Parallel reads such as `search`, `route`, `read`, `history` and `diff` are now an explicit Phase-1 goal and should work across multiple agents. Write paths such as `index rebuild` and onboarding apply are serialized per workspace through a local write lock, so concurrent writes queue behind the active writer instead of colliding.
 
 ## What Phase 1 Does Not Do
 

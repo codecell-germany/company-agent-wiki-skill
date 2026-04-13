@@ -16,6 +16,7 @@
 ## Main Commands
 
 - `setup workspace`
+- `workspace current|list|register|use`
 - `onboarding company`
 - `doctor`
 - `verify`
@@ -32,10 +33,13 @@
 ## Expected Workflow
 
 1. Set up the private workspace.
-2. Use the starter documents or run `onboarding company`, then preview or apply the generated onboarding Markdown from an answers file.
-3. Register any additional Markdown roots.
-4. Rebuild the index.
-5. Verify that the snapshot is fresh. On a brand-new workspace `verify` reports `missing` instead of failing hard.
-6. Search or route to the right document. For active authoring loops, prefer `--auto-rebuild` and front-matter filters such as `--type`, `--project` or `--department`.
-7. Inspect metadata and headings with `read --metadata --headings --auto-rebuild`.
-8. Read the full source document or use the read-only web view.
+2. The workspace is registered globally so other agents can discover it automatically.
+3. Use the starter documents or run `onboarding company`, then preview or apply the generated onboarding Markdown from an answers file.
+4. Register any additional Markdown roots.
+5. Rebuild the index.
+6. Verify that the snapshot is fresh. On a brand-new workspace `verify` reports `missing` instead of failing hard.
+7. Search or route to the right document. For active authoring loops, prefer `--auto-rebuild` and front-matter filters such as `--type`, `--project` or `--department`.
+8. Inspect metadata and headings with `read --metadata --headings --auto-rebuild`.
+9. Read the full source document or use the read-only web view.
+
+Parallel reads are supported. Writes are serialized per workspace.

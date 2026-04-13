@@ -10,6 +10,7 @@ import { sha256, newBuildId } from "./hash";
 import { snapshotGitState } from "./git";
 import { parseMarkdownDocument } from "./markdown";
 import { loadWorkspaceConfig, resolveRootPath, resolveWorkspacePaths } from "./workspace";
+import { withWorkspaceWriteLock } from "./write-lock";
 import type {
   DocumentHeadingView,
   DocumentMetadataView,
@@ -29,6 +30,12 @@ function openDatabase(databasePath: string, options?: { readonly?: boolean }): D
       options?.readonly ? { readonly: true, fileMustExist: true } : undefined
     );
     database.pragma("busy_timeout = 5000");
+    if (options?.readonly) {
+      database.pragma("query_only = 1");
+    } else {
+      database.pragma("journal_mode = WAL");
+      database.pragma("synchronous = NORMAL");
+    }
     return database;
   } catch (error) {
     throw (
@@ -378,10 +385,10 @@ function matchesFilters(metadata: DocumentMetadataView, filters?: SearchFilters)
   return true;
 }
 
-export function rebuildIndex(workspaceRoot: string): IndexManifest {
+export function rebuildIndexUnlocked(workspaceRoot: string): IndexManifest {
   const config = loadWorkspaceConfig(workspaceRoot);
   const paths = resolveWorkspacePaths(workspaceRoot);
-  const tempDbPath = `${paths.indexDbPath}.next`;
+  const tempDbPath = `${paths.indexDbPath}.${process.pid}.${Date.now()}.${newBuildId()}.next`;
   const indexedAt = new Date().toISOString();
 
   if (fileExists(tempDbPath)) {
@@ -459,6 +466,10 @@ export function rebuildIndex(workspaceRoot: string): IndexManifest {
     }
     throwKnownDatabaseError(error, workspaceRoot);
   }
+}
+
+export function rebuildIndex(workspaceRoot: string): IndexManifest {
+  return withWorkspaceWriteLock(workspaceRoot, "index-rebuild", () => rebuildIndexUnlocked(workspaceRoot));
 }
 
 export function readManifest(workspaceRoot: string): IndexManifest {

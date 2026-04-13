@@ -15,7 +15,8 @@
 - Auto-rebuild is opt-in. Without `--auto-rebuild`, stale or missing indexes still block retrieval on purpose.
 - Search quality depends on document structure and heading hygiene in the source Markdown.
 - Front-matter filters are currently focused on common fields such as `type`, `status`, `tags`, `project`, `department`, `owners` and `systems`; there is not yet a generic arbitrary-field query language.
-- The SQLite runtime is more tolerant of transient contention now, but the same workspace should still not be hammered by multiple parallel agent reads if that can be avoided.
+- Parallel reads are supported, but there is still only one active write path per workspace at a time.
+- Long-running rebuilds can delay later auto-rebuild requests because they queue behind the same workspace lock.
 - Search JSON now exposes a normalized `score` plus `rawScore`; the normalized value is better for agents, but it is still only a ranking aid, not a calibrated relevance percentage.
 
 ## Git Model
@@ -28,3 +29,4 @@
 
 - The CLI can initialize a private Git remote URL, but it does not validate remote policy or access controls.
 - The package does not enforce OS-level filesystem permissions; the workspace owner must place the private workspace in a properly protected location.
+- The global workspace registry is only a discovery layer, not an access-control boundary. Any agent running as the same local user can read the registered workspace path.

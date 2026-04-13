@@ -45,7 +45,8 @@ The index and manifest are derived artifacts and should stay ignored in the priv
 7. `read --metadata --headings` supports a metadata-first retrieval pass before the full Markdown is loaded.
 8. `search`, `route` and `read` either enforce a fresh index or can explicitly auto-rebuild when `--auto-rebuild` is set.
 9. Runtime commands may detect the current workspace automatically when the shell is already inside a private workspace.
-10. `serve` exposes the same read-only data through a local web view and now distinguishes `missing`, `stale` and `ok` states with a rebuild action.
+10. A global per-user workspace registry stores known workspace paths and a default workspace so other agents can resolve the knowledge location automatically on macOS, Windows and Linux.
+11. `serve` exposes the same read-only data through a local web view and now distinguishes `missing`, `stale` and `ok` states with a rebuild action.
 
 ## Onboarding Model
 
@@ -73,6 +74,8 @@ Reads are pinned to the latest successful `build_id`. If current root snapshots 
 
 The SQLite runtime also uses a busy timeout and returns a specific `SQLITE_LOCKED` error for transient contention instead of surfacing a generic runtime failure.
 
+Phase 1 now also adds a workspace-local write lock. The lock serializes rebuilds and other write flows per workspace, while parallel readers continue against the current derived index.
+
 ## Metadata-First Retrieval
 
 Phase 1 now explicitly supports a two-step retrieval model:
@@ -81,6 +84,21 @@ Phase 1 now explicitly supports a two-step retrieval model:
 2. metadata and heading inspection before full document reads
 
 This keeps the agent loop lighter and encourages stronger filenames plus front matter without forcing a rigid folder taxonomy.
+
+## Global Workspace Discovery
+
+Phase 1 now persists workspace discovery outside the private workspace itself:
+
+- macOS: `~/Library/Application Support/company-agent-wiki/workspaces.json`
+- Windows: `%APPDATA%\\company-agent-wiki\\workspaces.json`
+- Linux: `${XDG_CONFIG_HOME:-~/.config}/company-agent-wiki/workspaces.json`
+
+The registry stores known workspace paths plus a default workspace. `setup workspace` registers the workspace automatically. Runtime commands prefer:
+
+1. explicit `--workspace`
+2. current-directory detection
+3. global default workspace
+4. the single registered workspace, if exactly one exists
 
 ## Git Model
 

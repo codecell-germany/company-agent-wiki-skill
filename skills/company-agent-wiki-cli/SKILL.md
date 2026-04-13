@@ -17,7 +17,7 @@ Use this skill when the task is about a private company knowledge workspace buil
 - The public CLI binary is `company-agent-wiki-cli`.
 - The actual company knowledge workspace is private and lives outside the public code repository.
 - The private workspace may be the current dedicated local folder; it just must not be the public skill/CLI repo.
-- The human should provide the workspace path and, if desired, the private Git remote URL. If the current folder is already inside a private workspace, the CLI may detect it automatically.
+- The human should provide the workspace path at least once and, if desired, the private Git remote URL. After setup or manual registration, the CLI stores the workspace path in a global per-user registry so later agents can resolve it automatically.
 - Runtime discovery matters. Before relying on the CLI, verify which path is actually available.
 - In Codex, the most reliable fallback is usually the installed shim under `$CODEX_HOME/bin` or `~/.codex/bin`.
 - The `npx -p @codecell-germany/company-agent-wiki-skill ...` path only works after the npm package is really published.
@@ -58,7 +58,15 @@ npx -p @codecell-germany/company-agent-wiki-skill company-agent-wiki-cli --help
 company-agent-wiki-cli setup workspace --workspace /absolute/path/to/private-company-knowledge --git-init
 ```
 
-This creates starter Markdown documents by default. Use `--no-starter-docs` only when you explicitly want a nearly empty workspace.
+This creates starter Markdown documents by default and registers the workspace globally for future agents. Use `--no-starter-docs` only when you explicitly want a nearly empty workspace.
+
+If the workspace already exists, inspect or register it explicitly:
+
+```bash
+company-agent-wiki-cli workspace current --json
+company-agent-wiki-cli workspace list --json
+company-agent-wiki-cli workspace register --workspace /absolute/path/to/private-company-knowledge --default --json
+```
 
 3. Run health checks:
 
@@ -234,13 +242,19 @@ company-agent-wiki-cli onboarding company \
 - The local SQLite file lives in the workspace, but should stay out of Git by default.
 - If the CLI reports `INDEX_STALE`, do not ignore it. Run `index rebuild` or use an explicit `--auto-rebuild` path.
 - For agent workflows, prefer `--auto-rebuild` on `search`, `route`, `read` and `serve` unless you explicitly want strict stale-index failures.
-- Avoid parallel `search`, `route`, `read`, `history` and `diff` calls against the same workspace when possible. SQLite contention is now surfaced clearly, but agent-side serialization is still the safer Phase-1 pattern.
+- Parallel `search`, `route`, `read`, `history` and `diff` calls against the same workspace are now intended to work.
+- Write paths are serialized per workspace. If one agent is rebuilding the index or applying onboarding writes, other write paths wait behind that workspace lock instead of colliding.
 - Do not put private company knowledge into the public code repository.
 - Use the read-only web view only for browsing, not editing.
 - The company onboarding questionnaire is optional. Every answer may be skipped, answered with “nein” or marked as unknown.
 - Onboarding writes are explicit. Do not assume preview mode changes files; only `--execute` writes draft onboarding Markdown and rebuilds the derived index.
 - If CLI discovery fails, do not pretend the documented command works. First resolve a real executable path.
 - If the current folder already contains `.company-agent-wiki/workspace.json`, you may omit `--workspace` and let the CLI detect the workspace root automatically.
+- If the current folder is not inside the workspace, the CLI may still resolve the globally registered default workspace.
+- The global workspace registry lives per user:
+  - macOS: `~/Library/Application Support/company-agent-wiki/workspaces.json`
+  - Windows: `%APPDATA%\\company-agent-wiki\\workspaces.json`
+  - Linux: `${XDG_CONFIG_HOME:-~/.config}/company-agent-wiki/workspaces.json`
 
 ## References
 

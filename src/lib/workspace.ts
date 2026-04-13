@@ -8,6 +8,8 @@ import {
   DEFAULT_MANAGED_ROOT_ID,
   DEFAULT_MANAGED_ROOT_PATH,
   EXIT_CODES,
+  GLOBAL_REGISTRY_DIR_NAME,
+  GLOBAL_REGISTRY_FILE,
   INDEX_DB_FILE,
   INDEX_MANIFEST_FILE,
   WORKSPACE_CONFIG_FILE,
@@ -15,10 +17,16 @@ import {
   WORKSPACE_LAYOUT_VERSION
 } from "./constants";
 import { CliError } from "./errors";
-import { fileExists, isDirectory, readJsonFile, writeJsonFile, writeTextFile } from "./fs-utils";
+import { fileExists, isDirectory, readJsonFile, writeJsonAtomic, writeJsonFile, writeTextFile } from "./fs-utils";
 import { newBuildId } from "./hash";
 import { configureRemote, initGitRepository, isGitAvailable, isGitRepository } from "./git";
-import type { WorkspaceConfig, WorkspaceRoot } from "./types";
+import type {
+  GlobalWorkspaceRegistry,
+  RegisteredWorkspace,
+  ResolvedWorkspaceSelection,
+  WorkspaceConfig,
+  WorkspaceRoot
+} from "./types";
 
 export interface WorkspacePaths {
   workspaceRoot: string;
@@ -34,8 +42,35 @@ export function getDefaultCodexHome(): string {
   return process.env.CODEX_HOME || path.join(os.homedir(), ".codex");
 }
 
+export function getGlobalRegistryDir(): string {
+  const explicit = process.env.COMPANY_AGENT_WIKI_CONFIG_HOME;
+  if (explicit?.trim()) {
+    return path.resolve(explicit);
+  }
+
+  if (process.env.VITEST || process.env.NODE_ENV === "test") {
+    return path.join(os.tmpdir(), GLOBAL_REGISTRY_DIR_NAME, "vitest");
+  }
+
+  if (process.platform === "darwin") {
+    return path.join(os.homedir(), "Library", "Application Support", GLOBAL_REGISTRY_DIR_NAME);
+  }
+
+  if (process.platform === "win32") {
+    const roaming = process.env.APPDATA || path.join(os.homedir(), "AppData", "Roaming");
+    return path.join(roaming, GLOBAL_REGISTRY_DIR_NAME);
+  }
+
+  const xdgConfig = process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config");
+  return path.join(xdgConfig, GLOBAL_REGISTRY_DIR_NAME);
+}
+
+export function getGlobalRegistryPath(): string {
+  return path.join(getGlobalRegistryDir(), GLOBAL_REGISTRY_FILE);
+}
+
 export function resolveWorkspacePaths(workspaceRoot: string): WorkspacePaths {
-  const absoluteRoot = path.resolve(workspaceRoot);
+  const absoluteRoot = normalizeWorkspaceRootPath(workspaceRoot);
   const internalDir = path.join(absoluteRoot, WORKSPACE_INTERNAL_DIR);
 
   return {
@@ -63,6 +98,195 @@ export function detectWorkspaceRoot(startDir = process.cwd()): string | undefine
     }
     current = parent;
   }
+}
+
+function createDefaultGlobalRegistry(): GlobalWorkspaceRegistry {
+  return {
+    schemaVersion: WORKSPACE_LAYOUT_VERSION,
+    updatedAt: new Date().toISOString(),
+    workspaces: []
+  };
+}
+
+function normalizeWorkspaceRootPath(candidatePath: string): string {
+  const resolved = path.resolve(candidatePath);
+  try {
+    return fs.realpathSync.native ? fs.realpathSync.native(resolved) : fs.realpathSync(resolved);
+  } catch {
+    return resolved;
+  }
+}
+
+export function loadGlobalWorkspaceRegistry(): GlobalWorkspaceRegistry {
+  const registryPath = getGlobalRegistryPath();
+  if (!fileExists(registryPath)) {
+    return createDefaultGlobalRegistry();
+  }
+
+  const raw = readJsonFile<GlobalWorkspaceRegistry>(registryPath);
+  const registry = createDefaultGlobalRegistry();
+  registry.schemaVersion = raw.schemaVersion || registry.schemaVersion;
+  registry.updatedAt = raw.updatedAt || registry.updatedAt;
+
+  const deduped = new Map<string, RegisteredWorkspace>();
+  for (const entry of raw.workspaces || []) {
+    const normalizedPath = normalizeWorkspaceRootPath(entry.path);
+    if (!fileExists(resolveWorkspacePaths(normalizedPath).configPath)) {
+      continue;
+    }
+
+    const normalizedEntry: RegisteredWorkspace = {
+      workspaceId: entry.workspaceId,
+      path: normalizedPath,
+      label: entry.label || path.basename(normalizedPath),
+      registeredAt: entry.registeredAt,
+      lastUsedAt: entry.lastUsedAt,
+      source: entry.source
+    };
+
+    const existing = deduped.get(normalizedPath);
+    if (!existing || existing.lastUsedAt < normalizedEntry.lastUsedAt) {
+      deduped.set(normalizedPath, normalizedEntry);
+    }
+  }
+
+  registry.workspaces = Array.from(deduped.values()).sort((left, right) => left.label.localeCompare(right.label));
+  if (raw.defaultWorkspace) {
+    const normalizedDefault = normalizeWorkspaceRootPath(raw.defaultWorkspace);
+    if (deduped.has(normalizedDefault)) {
+      registry.defaultWorkspace = normalizedDefault;
+    }
+  }
+
+  const serializedRaw = JSON.stringify(raw);
+  const serializedNormalized = JSON.stringify(registry);
+  if (serializedRaw !== serializedNormalized) {
+    saveGlobalWorkspaceRegistry(registry);
+  }
+
+  return registry;
+}
+
+export function saveGlobalWorkspaceRegistry(registry: GlobalWorkspaceRegistry): void {
+  writeJsonAtomic(getGlobalRegistryPath(), registry);
+}
+
+function buildRegisteredWorkspace(workspaceRoot: string, source: RegisteredWorkspace["source"]): RegisteredWorkspace {
+  const resolvedRoot = normalizeWorkspaceRootPath(workspaceRoot);
+  const config = loadWorkspaceConfig(resolvedRoot);
+  const now = new Date().toISOString();
+
+  return {
+    workspaceId: config.workspaceId,
+    path: resolvedRoot,
+    label: path.basename(resolvedRoot),
+    registeredAt: now,
+    lastUsedAt: now,
+    source
+  };
+}
+
+export function registerWorkspaceGlobally(
+  workspaceRoot: string,
+  options?: { setDefault?: boolean; source?: RegisteredWorkspace["source"] }
+): RegisteredWorkspace {
+  const resolvedRoot = path.resolve(workspaceRoot);
+  const nextEntry = buildRegisteredWorkspace(resolvedRoot, options?.source || "manual");
+  const registry = loadGlobalWorkspaceRegistry();
+  const existing = registry.workspaces.find((item) => item.path === resolvedRoot);
+
+  if (existing) {
+    existing.workspaceId = nextEntry.workspaceId;
+    existing.label = nextEntry.label;
+    existing.lastUsedAt = nextEntry.lastUsedAt;
+    existing.source = nextEntry.source;
+  } else {
+    registry.workspaces.push(nextEntry);
+  }
+
+  if (options?.setDefault || !registry.defaultWorkspace) {
+    registry.defaultWorkspace = resolvedRoot;
+  }
+  registry.updatedAt = new Date().toISOString();
+  saveGlobalWorkspaceRegistry(registry);
+
+  return registry.workspaces.find((item) => item.path === resolvedRoot) || nextEntry;
+}
+
+export function rememberWorkspaceGlobally(
+  workspaceRoot: string,
+  options?: { setDefault?: boolean; source?: RegisteredWorkspace["source"] }
+): RegisteredWorkspace | undefined {
+  const configPath = resolveWorkspacePaths(workspaceRoot).configPath;
+  if (!fileExists(configPath)) {
+    return undefined;
+  }
+
+  try {
+    return registerWorkspaceGlobally(workspaceRoot, options);
+  } catch {
+    return undefined;
+  }
+}
+
+export function listRegisteredWorkspaces(): {
+  registryPath: string;
+  defaultWorkspace?: string;
+  workspaces: Array<RegisteredWorkspace & { exists: boolean }>;
+} {
+  const registry = loadGlobalWorkspaceRegistry();
+  return {
+    registryPath: getGlobalRegistryPath(),
+    defaultWorkspace: registry.defaultWorkspace,
+    workspaces: registry.workspaces.map((item) => ({
+      ...item,
+      exists: fileExists(resolveWorkspacePaths(item.path).configPath)
+    }))
+  };
+}
+
+export function resolveWorkspaceSelection(startDir = process.cwd()): ResolvedWorkspaceSelection {
+  const registryPath = getGlobalRegistryPath();
+  const cwdWorkspace = detectWorkspaceRoot(startDir);
+  if (cwdWorkspace) {
+    rememberWorkspaceGlobally(cwdWorkspace, { setDefault: true, source: "detected" });
+    return {
+      workspaceRoot: cwdWorkspace,
+      source: "cwd",
+      registryPath,
+      defaultWorkspace: loadGlobalWorkspaceRegistry().defaultWorkspace
+    };
+  }
+
+  const registry = loadGlobalWorkspaceRegistry();
+  const existingWorkspaces = registry.workspaces.filter((item) => fileExists(resolveWorkspacePaths(item.path).configPath));
+  const defaultWorkspace = registry.defaultWorkspace;
+
+  if (defaultWorkspace && fileExists(resolveWorkspacePaths(defaultWorkspace).configPath)) {
+    rememberWorkspaceGlobally(defaultWorkspace, { setDefault: true, source: "runtime" });
+    return {
+      workspaceRoot: defaultWorkspace,
+      source: "global-default",
+      registryPath,
+      defaultWorkspace
+    };
+  }
+
+  if (existingWorkspaces.length === 1) {
+    const onlyWorkspace = existingWorkspaces[0].path;
+    rememberWorkspaceGlobally(onlyWorkspace, { setDefault: true, source: "runtime" });
+    return {
+      workspaceRoot: onlyWorkspace,
+      source: "single-registered",
+      registryPath,
+      defaultWorkspace: onlyWorkspace
+    };
+  }
+
+  return {
+    registryPath,
+    defaultWorkspace
+  };
 }
 
 function templateWorkspaceReadme(): string {
@@ -463,6 +687,8 @@ export function setupWorkspace(options: {
     }
   }
 
+  registerWorkspaceGlobally(paths.workspaceRoot, { setDefault: true, source: "setup" });
+
   return {
     workspaceRoot: paths.workspaceRoot,
     configPath: paths.configPath,
@@ -472,7 +698,8 @@ export function setupWorkspace(options: {
       `company-agent-wiki-cli doctor --workspace ${paths.workspaceRoot} --json`,
       `company-agent-wiki-cli index rebuild --workspace ${paths.workspaceRoot} --json`,
       `company-agent-wiki-cli verify --workspace ${paths.workspaceRoot} --json`,
-      `company-agent-wiki-cli serve --workspace ${paths.workspaceRoot} --port 4187`
+      `company-agent-wiki-cli serve --workspace ${paths.workspaceRoot} --port 4187`,
+      "Other agents can now discover this workspace automatically via the global workspace registry."
     ]
   };
 }
@@ -513,6 +740,7 @@ export function addRoot(
 
   config.roots.push(root);
   saveWorkspaceConfig(workspaceRoot, config);
+  rememberWorkspaceGlobally(workspaceRoot, { setDefault: true, source: "runtime" });
   return root;
 }
 
@@ -539,6 +767,8 @@ export function doctor(workspaceRoot: string): {
   const codexBinDir = path.join(codexHome, "bin");
   const codexShimPath = path.join(codexBinDir, CLI_NAME);
   const pathEntries = (process.env.PATH || "").split(path.delimiter).filter(Boolean);
+  const registryPath = getGlobalRegistryPath();
+  const registry = loadGlobalWorkspaceRegistry();
 
   checks.push({
     name: "workspace-root",
@@ -576,6 +806,25 @@ export function doctor(workspaceRoot: string): {
     message: pathEntries.includes(codexBinDir)
       ? `Codex bin directory is available in PATH: ${codexBinDir}`
       : `Codex bin directory is not in PATH: ${codexBinDir}`
+  });
+
+  checks.push({
+    name: "global-workspace-registry",
+    ok: fileExists(registryPath),
+    message: fileExists(registryPath)
+      ? `Global workspace registry found: ${registryPath}`
+      : `Global workspace registry missing: ${registryPath}`
+  });
+
+  checks.push({
+    name: "global-default-workspace",
+    ok:
+      typeof registry.defaultWorkspace === "string" &&
+      fileExists(resolveWorkspacePaths(registry.defaultWorkspace).configPath),
+    message:
+      typeof registry.defaultWorkspace === "string"
+        ? `Global default workspace: ${registry.defaultWorkspace}`
+        : "No global default workspace registered yet."
   });
 
   if (fileExists(paths.configPath)) {

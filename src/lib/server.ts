@@ -333,6 +333,7 @@ function getHttpStatusCode(error: unknown): number {
     case "INDEX_STALE":
       return 409;
     case "SQLITE_LOCKED":
+    case "WORKSPACE_BUSY":
       return 423;
     default:
       return 500;
