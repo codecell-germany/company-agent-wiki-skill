@@ -118,6 +118,25 @@ npm_config_cache="$CACHE" npx -y @codecell-germany/company-agent-wiki-skill@0.1.
 "$TMP/codex/bin/company-agent-wiki-cli" --help
 ```
 
+Falls `npm view` direkt nach dem Publish kurzfristig noch `404` liefert, zusätzlich die Registry-Tarball-URL prüfen und daraus den Install-Smoke fahren:
+
+```bash
+curl -I https://registry.npmjs.org/@codecell-germany/company-agent-wiki-skill/-/company-agent-wiki-skill-0.1.0.tgz
+TMP="$(mktemp -d)"
+cd "$TMP"
+npx -y -p https://registry.npmjs.org/@codecell-germany/company-agent-wiki-skill/-/company-agent-wiki-skill-0.1.0.tgz company-agent-wiki-cli --help
+```
+
+Praktisches Learning aus diesem Release:
+
+- `npm dist-tag ls` und die direkte Tarball-URL können bereits korrekt funktionieren, während `npm view` bzw. die Packument-Auflösung noch kurz hinterherhinkt.
+- Für die Veröffentlichungsfreigabe reicht deshalb im Zweifel:
+  - erfolgreicher `npm publish`
+  - `npm access get status <package>` = `public`
+  - `npm dist-tag ls <package>` zeigt `latest`
+  - Tarball-URL liefert `200`
+  - CLI-/Installer-Smoke direkt von der Tarball-URL funktioniert
+
 ## skills.sh Verification
 
 Nach GitHub-Publish:
