@@ -20,14 +20,15 @@ Use this skill when the task is about a private company knowledge workspace buil
 - The human should provide the workspace path at least once and, if desired, the private Git remote URL. After setup or manual registration, the CLI stores the workspace path in a global per-user registry so later agents can resolve it automatically.
 - Runtime discovery matters. Before relying on the CLI, verify which path is actually available.
 - In Codex, the most reliable fallback is usually the installed shim under `$CODEX_HOME/bin` or `~/.codex/bin`.
-- The `npx -p @codecell-germany/company-agent-wiki-skill ...` path only works after the npm package is really published.
+- The preferred one-command installer path is `npx -y -p @codecell-germany/company-agent-wiki-skill company-agent-wiki-skill install --force`. This only works after the npm package is really published.
 - `node dist/index.js` only works inside the public implementation repo after `npm run build`, not inside an arbitrary private workspace.
 - If the binary is not already installed in PATH, use these fallbacks in this order:
 
 ```bash
 "$CODEX_HOME/bin/company-agent-wiki-cli" --help
 "$HOME/.codex/bin/company-agent-wiki-cli" --help
-npx -p @codecell-germany/company-agent-wiki-skill company-agent-wiki-cli --help
+company-agent-wiki-cli --help
+npx -y -p @codecell-germany/company-agent-wiki-skill company-agent-wiki-skill install --force
 node dist/index.js --help
 ```
 
@@ -46,10 +47,10 @@ If that fails, try the PATH binary as a convenience fallback:
 company-agent-wiki-cli --help
 ```
 
-Only if the package is already published should you rely on:
+If the CLI is not installed yet and the package is already published, install it with one command:
 
 ```bash
-npx -p @codecell-germany/company-agent-wiki-skill company-agent-wiki-cli --help
+npx -y -p @codecell-germany/company-agent-wiki-skill company-agent-wiki-skill install --force
 ```
 
 2. If no private workspace exists yet, create one:

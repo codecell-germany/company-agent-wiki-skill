@@ -16,6 +16,7 @@ export function writeJsonFile(targetPath: string, value: unknown): void {
 
 export function writeJsonAtomic(targetPath: string, value: unknown): void {
   const tempPath = `${targetPath}.tmp`;
+  ensureDir(path.dirname(targetPath));
   writeJsonFile(tempPath, value);
   fs.renameSync(tempPath, targetPath);
 }
@@ -63,4 +64,3 @@ export function walkMarkdownFiles(rootPath: string): string[] {
   walk(rootPath);
   return files.sort();
 }
-

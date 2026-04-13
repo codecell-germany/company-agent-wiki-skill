@@ -25,12 +25,13 @@ The workspace path only has to be provided once. After setup or manual registrat
 Before relying on the CLI, verify a real executable path:
 
 ```bash
+npx -y -p @codecell-germany/company-agent-wiki-skill company-agent-wiki-skill install --force
 "$CODEX_HOME/bin/company-agent-wiki-cli" --help
 "$HOME/.codex/bin/company-agent-wiki-cli" --help
 company-agent-wiki-cli --help
 ```
 
-The package-based `npx` path is only valid once the npm package is published.
+The package-based `npx` installer path is only valid once the npm package is published.
 
 If the current folder is already inside a private workspace, runtime commands may omit `--workspace`.
 If not, inspect or update the global registry:

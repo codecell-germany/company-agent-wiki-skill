@@ -3,6 +3,7 @@
 ## Workspace
 
 ```bash
+npx -y -p @codecell-germany/company-agent-wiki-skill company-agent-wiki-skill install --force
 "$CODEX_HOME/bin/company-agent-wiki-cli" --help
 "$HOME/.codex/bin/company-agent-wiki-cli" --help
 company-agent-wiki-cli about --json

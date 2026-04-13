@@ -1,53 +1,84 @@
-# Company Agent Wiki Skill
+# company-agent-wiki-skill
+
+---
+
+# English
+
+## Purpose
 
 > Context is king.
 
-`company-agent-wiki-cli` is a local, agent-first company knowledge runtime:
+`company-agent-wiki-skill` is an agent-first local company knowledge toolkit.
+It ships as a real CLI plus a Codex-style skill payload, so an agent can set up a private company wiki, verify the index state, search knowledge, inspect metadata and headings first, and only then load full Markdown when needed.
 
-- Markdown files stay the source of truth
-- a local SQLite index accelerates routing and section search
-- metadata-first retrieval lets agents inspect filenames, front matter and headings before loading full documents
-- Git remains the audit and history layer
-- the optional web view is read-only and shows index state, documents, diffs and history
+The product surface is the public CLI:
 
-It is also deliberately inspired by Anthropic's Markdown + YAML-frontmatter model for Claude Code subagents: [Anthropic Claude Code Subagents](https://docs.anthropic.com/en/docs/claude-code/sub-agents).  
-The difference here is the retrieval layer: the metadata does not just sit in front matter, it is additionally indexed and filterable through a local SQLite search layer.
+- `company-agent-wiki-cli`
+- `company-agent-wiki-skill`
 
-## Core USP
+The skill explains how an agent should use that CLI safely.
+It is not a substitute implementation.
 
-The main product differentiator is a strict metadata-first retrieval model for agents.
+## Current scope
 
-Instead of throwing full Markdown files into context immediately, the intended flow is:
+- private local knowledge workspaces with Markdown as the source of truth
+- a rebuildable local SQLite index for routing and section search
+- metadata-first retrieval over filename, front matter and headings
+- Git-backed history and diff workflows
+- global per-user workspace discovery for later agents
+- company-profile onboarding blueprints
+- a read-only local web view
 
-1. find candidate files via indexed search and routing
-2. inspect descriptive filenames plus structured front matter
-3. inspect the heading tree
-4. only then load the full Markdown when the candidate is clearly relevant
+## Product model
 
-That gives agents a local, deterministic and Git-friendly knowledge workflow that stays transparent for humans:
+The core design is simple:
 
-- context is king
-- filenames still matter
-- Markdown stays readable
-- front matter becomes the routing layer
-- headings become the low-cost structure preview
-- full document reads happen last, not first
+- Markdown stays human-readable and remains the source of truth
+- SQLite is derived and rebuildable
+- Git stays the audit and history layer
+- the CLI is the real product surface for agents
 
-Phase 1 is intentionally narrow:
+The retrieval model is deliberately inspired by Anthropic's Markdown plus YAML front-matter pattern for Claude Code subagents:
+[Anthropic Claude Code Subagents](https://docs.anthropic.com/en/docs/claude-code/sub-agents)
 
-- no connectors
-- no GUI editing
-- no silent sync magic
-- no commits or pushes from this code repository
+The difference is the retrieval layer.
+Here, front matter is not only stored in Markdown files, but also indexed and filterable through a local SQLite search layer.
 
-The private knowledge workspace lives outside this public code repository. It may still be the current dedicated private folder in which you want to build the wiki; the important point is only that it must not be the public skill/CLI repository itself.
+## Installation
 
-## Product Surface
+### 1. Install into Codex with one command
 
-- npm package: `@codecell-germany/company-agent-wiki-skill`
-- CLI binary: `company-agent-wiki-cli`
-- installer binary: `company-agent-wiki-skill`
-- Codex skill name: `company-agent-wiki-cli`
+The preferred install path is:
+
+```bash
+npx -y -p @codecell-germany/company-agent-wiki-skill company-agent-wiki-skill install --force
+```
+
+That installs:
+
+- the skill payload into `~/.codex/skills/company-agent-wiki-cli`
+- the runtime into `~/.codex/tools/company-agent-wiki-cli`
+- the CLI shim into `~/.codex/bin/company-agent-wiki-cli`
+
+### 2. Verify the CLI
+
+```bash
+company-agent-wiki-cli --help
+"$CODEX_HOME/bin/company-agent-wiki-cli" --help
+"$HOME/.codex/bin/company-agent-wiki-cli" --help
+```
+
+In Codex, the direct shim path is often the most reliable fallback.
+
+### 3. Optional local repo workflow
+
+If you are working inside this public implementation repo itself:
+
+```bash
+npm install
+npm run build
+node dist/installer.js install --force
+```
 
 ## Requirements
 
@@ -56,55 +87,21 @@ The private knowledge workspace lives outside this public code repository. It ma
 - a private local folder for the actual knowledge workspace
 - optionally a private Git remote URL for that workspace
 
-The SQLite index is local and derived. It is rebuilt by the CLI and must not be treated as the source of truth.
-It lives inside the private workspace under `.company-agent-wiki/index.sqlite`, but it is intentionally kept out of Git by default because it is rebuildable, binary and noisy in diffs.
+The private knowledge workspace must not be this public code repository.
+It may still be the current dedicated private folder in which you want to build the wiki.
 
-The workspace path can also be stored globally for other agents. Phase 1 now keeps a per-user workspace registry:
+The SQLite index lives inside the private workspace under `.company-agent-wiki/index.sqlite`.
+It is intentionally kept out of Git by default because it is rebuildable, binary and noisy in diffs.
+
+The workspace path can also be stored globally for other agents:
 
 - macOS: `~/Library/Application Support/company-agent-wiki/workspaces.json`
-- Windows: `%APPDATA%\\company-agent-wiki\\workspaces.json`
+- Windows: `%APPDATA%\company-agent-wiki\workspaces.json`
 - Linux: `${XDG_CONFIG_HOME:-~/.config}/company-agent-wiki/workspaces.json`
 
-## Install
+## Quick start
 
-```bash
-npm install
-npm run build
-```
-
-Inside this implementation repo, the most reliable local install path is:
-
-```bash
-node dist/installer.js install --force
-```
-
-Other valid operator paths:
-
-```bash
-"$CODEX_HOME/bin/company-agent-wiki-cli" --help
-"$HOME/.codex/bin/company-agent-wiki-cli" --help
-npx -p @codecell-germany/company-agent-wiki-skill company-agent-wiki-cli --help
-node dist/index.js --help
-```
-
-Important:
-
-- the direct `~/.codex/bin` path is the most reliable fallback in Codex
-- `node dist/installer.js install --force` is the most reliable local install path while working from this repo
-- the `npx -p @codecell-germany/company-agent-wiki-skill ...` path only works after the package is actually published
-- `node dist/index.js` only works inside the public implementation repo after `npm run build`, not inside a private knowledge workspace
-
-To test the local build without a global install:
-
-```bash
-node dist/index.js --help
-node dist/installer.js install --force
-```
-
-## First Run
-
-1. Create or choose a private workspace folder outside this repository.
-2. Run setup:
+Create or choose a private workspace and run:
 
 ```bash
 company-agent-wiki-cli setup workspace \
@@ -113,27 +110,15 @@ company-agent-wiki-cli setup workspace \
   --git-remote git@github.com:your-org/private-company-knowledge.git
 ```
 
-This now also registers the workspace globally and marks it as the default for later agents.
-
-3. Inspect the local state:
+Then:
 
 ```bash
 company-agent-wiki-cli doctor --workspace /absolute/path/to/private-company-knowledge --json
-```
-
-4. Rebuild the index:
-
-```bash
 company-agent-wiki-cli index rebuild --workspace /absolute/path/to/private-company-knowledge --json
-```
-
-5. Verify the indexed snapshot:
-
-```bash
 company-agent-wiki-cli verify --workspace /absolute/path/to/private-company-knowledge --json
 ```
 
-6. Query the workspace:
+After that, start retrieval:
 
 ```bash
 company-agent-wiki-cli search "reverse charge aws invoice" --workspace /absolute/path/to/private-company-knowledge --type process --department buchhaltung --auto-rebuild --json
@@ -143,76 +128,40 @@ company-agent-wiki-cli read --doc-id process.example --workspace /absolute/path/
 company-agent-wiki-cli serve --workspace /absolute/path/to/private-company-knowledge --port 4187 --auto-rebuild
 ```
 
-The read-only web view is served by the installed CLI process. The private workspace itself contains Markdown, metadata and the local derived index, but no standalone frontend application.
+By default `setup workspace` also creates starter Markdown files such as:
 
-If the current shell is already inside a private workspace, runtime commands such as `doctor`, `verify`, `search`, `route`, `read`, `history`, `diff` and `serve` may omit `--workspace`.
-If not, the CLI can now also fall back to the globally registered default workspace.
+- `wiki-start-here.md`
+- `company-profile.md`
+- `organisation-und-rollen.md`
+- `systeme-und-tools.md`
+- `kernprozesse.md`
+- `projekte-und-roadmap.md`
+- `glossar.md`
 
-Useful discovery commands:
+## Deterministic first-run order for agents
 
-```bash
-company-agent-wiki-cli workspace current --json
-company-agent-wiki-cli workspace list --json
-company-agent-wiki-cli workspace register --workspace /absolute/path/to/private-company-knowledge --default --json
-company-agent-wiki-cli workspace use --workspace /absolute/path/to/private-company-knowledge --json
-```
+If a fresh agent receives this skill, the correct order is:
 
-By default `setup workspace` also creates starter Markdown documents such as `wiki-start-here.md`, `company-profile.md`, `organisation-und-rollen.md`, `systeme-und-tools.md`, `kernprozesse.md`, `projekte-und-roadmap.md` and `glossar.md`. Use `--no-starter-docs` only if you intentionally want an almost empty scaffold.
+1. Verify the CLI path:
+   - `company-agent-wiki-cli --help`
+   - `"$CODEX_HOME/bin/company-agent-wiki-cli" --help`
+   - `"$HOME/.codex/bin/company-agent-wiki-cli" --help`
+2. If no workspace exists yet, create one with `setup workspace`.
+3. If a workspace already exists, inspect or register it:
+   - `workspace current --json`
+   - `workspace list --json`
+   - `workspace register --workspace /absolute/path --default --json`
+4. Run `doctor --json`.
+5. Run `index rebuild --json`.
+6. Run `verify --json`.
+7. Only then use `search`, `route`, `read`, `history`, `diff` or `serve`.
 
-You can also start the optional company-profile onboarding for the agent:
+If the current shell is already inside a private workspace, runtime commands may omit `--workspace`.
+If not, the CLI can fall back to the globally registered default workspace.
 
-```bash
-company-agent-wiki-cli onboarding company
-company-agent-wiki-cli onboarding company --json
-company-agent-wiki-cli onboarding company \
-  --workspace /absolute/path/to/private-company-knowledge \
-  --answers-file /absolute/path/to/company-onboarding-answers.json
-company-agent-wiki-cli onboarding company \
-  --workspace /absolute/path/to/private-company-knowledge \
-  --answers-file /absolute/path/to/company-onboarding-answers.json \
-  --execute
-```
+## Retrieval workflow
 
-Without `--execute`, the CLI stays in preview mode and only reports which draft starter Markdown files would be written into the managed root.
-`--execute` requires `--answers-file`, and `--force` is only valid together with `--execute`.
-
-## Secure Setup Model
-
-This repository is publishable code only. It must never contain:
-
-- real company knowledge
-- exported business data
-- private OAuth or API credentials
-- live SQLite index files from customer workspaces
-
-The actual knowledge workspace is separate and private. The human must provide:
-
-- the private workspace path at least once
-- if desired, the private Git remote URL
-- access rights to that remote
-
-The agent can handle local scaffolding, root registration, global workspace registration and index rebuilds, but it should not invent remotes or inject private data into this repository.
-
-## Phase 1 Commands
-
-- `setup workspace`: scaffold a private workspace and optionally initialize Git
-- `workspace current|list|register|use`: inspect or manage the global workspace registry for other agents
-- `doctor`: inspect the local runtime and workspace state
-- `verify`: check whether the current roots still match the indexed snapshot
-- `roots add`: register another local Markdown root
-- `roots list`: show registered roots
-- `onboarding company`: emit the default German company-profile questionnaire or materialize draft onboarding Markdown from an answers file
-- `index rebuild`: rebuild the derived SQLite index and manifest
-- `search`: section-level search over Markdown knowledge, with safer free-text handling
-- `route`: grouped search results for agent routing
-- `read`: inspect metadata or headings first, then load a full document from the source files
-- `history`: show Git history for a tracked document
-- `diff`: show Git diff for a tracked document
-- `serve`: run a local read-only web view
-
-## Retrieval Workflow
-
-This is the core USP in practice. The intended agent workflow is:
+This is the core agent workflow:
 
 1. Find candidate documents with `search` or `route`.
 2. Narrow candidates with front-matter filters such as `--type`, `--project`, `--department`, `--tag`, `--owner` and `--system`.
@@ -227,7 +176,7 @@ company-agent-wiki-cli read --workspace /absolute/path --doc-id canonical.projek
 company-agent-wiki-cli read --workspace /absolute/path --doc-id canonical.projekt-alpha-roadmap --auto-rebuild
 ```
 
-## Authoring Workflow
+## Authoring workflow
 
 For new company knowledge, use a descriptive filename plus strong front matter.
 
@@ -258,17 +207,44 @@ systems:
 ---
 ```
 
-Then:
+Recommended authoring order:
 
-1. write the Markdown with a clean heading structure
-2. rebuild the index
-3. validate discoverability with `search --auto-rebuild`, `route --auto-rebuild` and `read --metadata --headings --auto-rebuild`
+1. Create the Markdown file inside `knowledge/canonical/` or another registered managed root.
+2. Use a filename that roughly describes the real content.
+3. Set front matter including `id`, `summary` and the routing fields that matter.
+4. If the content depends on external sources, document provenance, date and source type.
+5. Structure the file with clear `#`, `##` and `###` headings.
+6. Rebuild the index or use an `--auto-rebuild` retrieval path.
+7. Validate discoverability with `search`, `route` and `read --metadata --headings --auto-rebuild`.
+8. If the document is structurally important, update the start page or thematic overview pages as well.
 
-## Concurrency Note
+## Company onboarding
 
-The SQLite index is intentionally local and rebuildable. Parallel reads such as `search`, `route`, `read`, `history` and `diff` are now an explicit Phase-1 goal and should work across multiple agents. Write paths such as `index rebuild` and onboarding apply are serialized per workspace through a local write lock, so concurrent writes queue behind the active writer instead of colliding.
+You can also start the optional company-profile onboarding:
 
-## What Phase 1 Does Not Do
+```bash
+company-agent-wiki-cli onboarding company
+company-agent-wiki-cli onboarding company --json
+company-agent-wiki-cli onboarding company \
+  --workspace /absolute/path/to/private-company-knowledge \
+  --answers-file /absolute/path/to/company-onboarding-answers.json
+company-agent-wiki-cli onboarding company \
+  --workspace /absolute/path/to/private-company-knowledge \
+  --answers-file /absolute/path/to/company-onboarding-answers.json \
+  --execute
+```
+
+Without `--execute`, the CLI stays in preview mode.
+With `--execute`, it writes draft starter Markdown into the managed root and rebuilds the index.
+
+## Concurrency
+
+The SQLite index is intentionally local and rebuildable.
+Parallel reads such as `search`, `route`, `read`, `history` and `diff` are a supported Phase-1 goal and should work across multiple agents.
+
+Write paths such as `index rebuild` and onboarding apply are serialized per workspace through a local write lock, so concurrent writes queue behind the active writer instead of colliding.
+
+## What Phase 1 does not do
 
 - it does not ingest e-mail, CRM, chat or meeting systems
 - it does not write or edit knowledge through the web UI
