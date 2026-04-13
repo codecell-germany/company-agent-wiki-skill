@@ -1,0 +1,12 @@
+node_modules/
+dist/
+coverage/
+Plans/
+.context/
+output/
+.env
+.env.*
+*.tgz
+*.log
+.DS_Store
+
