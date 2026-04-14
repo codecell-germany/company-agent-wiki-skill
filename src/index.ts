@@ -8,12 +8,14 @@ import { CliError, coerceCliError } from "./lib/errors";
 import { getGitDiff, getGitHistory } from "./lib/git";
 import { detectInstalledRuntimeHome } from "./lib/install";
 import {
+  coverage,
   getDocumentHeadings,
   getDocumentMetadataById,
   getDocumentMetadataByPath,
   rebuildIndex,
   resolveDocumentById,
   route,
+  routeDebug,
   search,
   verifyIndex
 } from "./lib/indexer";
@@ -34,7 +36,7 @@ import {
   resolveWorkspaceSelection,
   setupWorkspace
 } from "./lib/workspace";
-import type { DocumentHeadingView, DocumentMetadataView, SearchFilters } from "./lib/types";
+import type { DocumentHeadingView, DocumentMetadataView, RouteGroup, SearchFilters } from "./lib/types";
 
 function assertWorkspace(workspacePath: string | undefined): string {
   if (workspacePath?.trim()) {
@@ -105,6 +107,9 @@ function printMetadata(metadata: DocumentMetadataView): void {
   if (metadata.tags.length > 0) {
     process.stdout.write(`  tags: ${metadata.tags.join(", ")}\n`);
   }
+  if (metadata.aliases.length > 0) {
+    process.stdout.write(`  aliases: ${metadata.aliases.join(", ")}\n`);
+  }
   if (metadata.owners.length > 0) {
     process.stdout.write(`  owners: ${metadata.owners.join(", ")}\n`);
   }
@@ -117,6 +122,24 @@ function printMetadata(metadata: DocumentMetadataView): void {
   if (metadata.summary) {
     process.stdout.write(`  summary: ${metadata.summary}\n`);
   }
+}
+
+function printRouteGroup(group: RouteGroup): void {
+  process.stdout.write(`${group.title}\n`);
+  process.stdout.write(`  ${group.bestHeading}\n`);
+  process.stdout.write(`  ${group.absPath}\n`);
+  const metadataBits = [
+    group.metadata.docType ? `type=${group.metadata.docType}` : null,
+    group.metadata.project ? `project=${group.metadata.project}` : null,
+    group.metadata.department ? `department=${group.metadata.department}` : null,
+    group.metadata.tags.length > 0 ? `tags=${group.metadata.tags.join(",")}` : null,
+    group.metadata.aliases.length > 0 ? `aliases=${group.metadata.aliases.join(",")}` : null
+  ].filter(Boolean);
+  if (metadataBits.length > 0) {
+    process.stdout.write(`  ${metadataBits.join(" | ")}\n`);
+  }
+  process.stdout.write(`  score=${group.score} coverage=${group.signals.coverage} fields=${group.signals.matchedFields.join(", ") || "none"}\n`);
+  process.stdout.write(`  ${group.bestSnippet}\n\n`);
 }
 
 function printHeadings(headings: DocumentHeadingView[]): void {
@@ -538,7 +561,7 @@ program
       return;
     }
     if (result.results.length === 0) {
-      process.stdout.write("Keine Treffer.\n");
+      process.stdout.write("Keine Treffer. Versuche `route-debug` oder ergänze `aliases`, `description`, `summary` oder präzisere Headings.\n");
       return;
     }
     for (const item of result.results) {
@@ -582,23 +605,121 @@ program
       return;
     }
     if (result.groups.length === 0) {
-      process.stdout.write("Keine Treffer.\n");
+      process.stdout.write("Keine starken Treffer.\n");
+      if (result.nearMisses.length > 0) {
+        process.stdout.write("Nahe Kandidaten:\n");
+        for (const item of result.nearMisses) {
+          printRouteGroup(item);
+        }
+      } else {
+        process.stdout.write("Nutze `route-debug`, um Token-Treffer und knappe Kandidaten zu analysieren.\n");
+      }
       return;
     }
     for (const item of result.groups) {
-      process.stdout.write(`${item.title}\n`);
-      process.stdout.write(`  ${item.bestHeading}\n`);
-      process.stdout.write(`  ${item.absPath}\n`);
-      if (item.metadata.docType || item.metadata.project || item.metadata.department || item.metadata.tags.length > 0) {
-        const metadataBits = [
-          item.metadata.docType ? `type=${item.metadata.docType}` : null,
-          item.metadata.project ? `project=${item.metadata.project}` : null,
-          item.metadata.department ? `department=${item.metadata.department}` : null,
-          item.metadata.tags.length > 0 ? `tags=${item.metadata.tags.join(",")}` : null
-        ].filter(Boolean);
-        process.stdout.write(`  ${metadataBits.join(" | ")}\n`);
+      printRouteGroup(item);
+    }
+    if (result.nearMisses.length > 0) {
+      process.stdout.write("Nahe Kandidaten:\n");
+      for (const item of result.nearMisses) {
+        printRouteGroup(item);
       }
-      process.stdout.write(`  ${item.bestSnippet}\n\n`);
+    }
+  });
+
+program
+  .command("route-debug")
+  .argument("<query>", "Routing query for diagnostics")
+  .option("--workspace <path>", "Workspace path. Optional when current directory is already inside a workspace.")
+  .option("--limit <number>", "Maximum number of grouped results", "8")
+  .option("--type <value>", "Filter by front matter type")
+  .option("--status <value>", "Filter by front matter status")
+  .option("--tag <value>", "Repeatable tag filter", collectValues, [])
+  .option("--project <value>", "Repeatable project filter", collectValues, [])
+  .option("--department <value>", "Repeatable department filter", collectValues, [])
+  .option("--owner <value>", "Repeatable owner filter", collectValues, [])
+  .option("--system <value>", "Repeatable system filter", collectValues, [])
+  .option("--auto-rebuild", "Rebuild the derived index automatically when missing or stale", false)
+  .option("--json", "Emit JSON output", false)
+  .action((query, options) => {
+    const result = routeDebug(assertWorkspace(options.workspace), query, Number(options.limit), {
+      autoRebuild: Boolean(options.autoRebuild),
+      filters: buildSearchFilters(options)
+    });
+    if (options.json) {
+      printJson(envelope("route-debug", result, [], result.manifest.buildId));
+      return;
+    }
+
+    process.stdout.write(`Query: ${result.query}\n`);
+    process.stdout.write(`Tokens: ${result.tokens.join(", ")}\n`);
+    if (result.groups.length > 0) {
+      process.stdout.write("Starke Treffer:\n");
+      for (const item of result.groups) {
+        printRouteGroup(item);
+      }
+    }
+    if (result.nearMisses.length > 0) {
+      process.stdout.write("Nahe Kandidaten:\n");
+      for (const item of result.nearMisses) {
+        printRouteGroup(item);
+      }
+    }
+    if (result.candidates.length > 0) {
+      process.stdout.write("Routing-Diagnose:\n");
+      for (const candidate of result.candidates) {
+        process.stdout.write(`- ${candidate.title} (${candidate.score})\n`);
+        process.stdout.write(`  Felder: ${candidate.signals.matchedFields.join(", ") || "none"}\n`);
+        process.stdout.write(`  Gründe: ${candidate.reasons.join(" | ") || "keine starken Signale"}\n`);
+      }
+    }
+  });
+
+program
+  .command("coverage")
+  .argument("<query>", "Coverage query")
+  .option("--workspace <path>", "Workspace path. Optional when current directory is already inside a workspace.")
+  .option("--limit <number>", "Maximum number of grouped results", "8")
+  .option("--type <value>", "Filter by front matter type")
+  .option("--status <value>", "Filter by front matter status")
+  .option("--tag <value>", "Repeatable tag filter", collectValues, [])
+  .option("--project <value>", "Repeatable project filter", collectValues, [])
+  .option("--department <value>", "Repeatable department filter", collectValues, [])
+  .option("--owner <value>", "Repeatable owner filter", collectValues, [])
+  .option("--system <value>", "Repeatable system filter", collectValues, [])
+  .option("--auto-rebuild", "Rebuild the derived index automatically when missing or stale", false)
+  .option("--json", "Emit JSON output", false)
+  .action((query, options) => {
+    const result = coverage(assertWorkspace(options.workspace), query, Number(options.limit), {
+      autoRebuild: Boolean(options.autoRebuild),
+      filters: buildSearchFilters(options)
+    });
+    if (options.json) {
+      printJson(envelope("coverage", result, [], result.manifest.buildId));
+      return;
+    }
+
+    process.stdout.write(`Coverage: ${result.state}\n`);
+    if (result.warning) {
+      process.stdout.write(`Hinweis: ${result.warning}\n`);
+    }
+    if (result.primary.length > 0) {
+      process.stdout.write("Primäre Dokumente:\n");
+      for (const item of result.primary) {
+        printRouteGroup(item);
+      }
+    }
+    if (result.supporting.length > 0) {
+      process.stdout.write("Unterstützende Dokumente:\n");
+      for (const item of result.supporting) {
+        printRouteGroup(item);
+      }
+    }
+    if (result.nearMisses.length > 0) {
+      process.stdout.write("Near misses:\n");
+      for (const item of result.nearMisses) {
+        printRouteGroup(item);
+      }
     }
   });
 

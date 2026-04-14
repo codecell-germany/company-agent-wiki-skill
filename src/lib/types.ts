@@ -135,6 +135,7 @@ export interface DocumentMetadataView {
   docType?: string;
   status?: string;
   tags: string[];
+  aliases: string[];
   description?: string;
   summary?: string;
   project?: string;
@@ -142,6 +143,54 @@ export interface DocumentMetadataView {
   owners: string[];
   systems: string[];
   frontmatter: Record<string, unknown>;
+}
+
+export interface RouteSignals {
+  matchedTokens: string[];
+  matchedFields: string[];
+  exactPhraseFields: string[];
+  coverage: number;
+  source: "fts" | "fallback";
+}
+
+export interface RouteGroup {
+  docId: string;
+  title: string;
+  absPath: string;
+  relPath: string;
+  bestSectionId: string;
+  bestHeading: string;
+  bestSnippet: string;
+  score: number;
+  rawScore: number;
+  metadata: DocumentMetadataView;
+  signals: RouteSignals;
+}
+
+export interface RouteResult {
+  manifest: IndexManifest;
+  groups: RouteGroup[];
+  nearMisses: RouteGroup[];
+}
+
+export interface RouteDebugCandidate extends RouteGroup {
+  reasons: string[];
+}
+
+export interface RouteDebugResult extends RouteResult {
+  query: string;
+  tokens: string[];
+  candidates: RouteDebugCandidate[];
+}
+
+export interface CoverageResult {
+  manifest: IndexManifest;
+  query: string;
+  state: "strong" | "partial" | "missing";
+  primary: RouteGroup[];
+  supporting: RouteGroup[];
+  nearMisses: RouteGroup[];
+  warning?: string;
 }
 
 export interface DocumentHeadingView {

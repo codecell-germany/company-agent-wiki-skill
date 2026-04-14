@@ -42,12 +42,14 @@ The index and manifest are derived artifacts and should stay ignored in the priv
 4. `index rebuild` parses Markdown files, sections and frontmatter into SQLite + FTS5.
 5. `verify` compares current root snapshots against the stored manifest and reports `missing` on a brand-new workspace instead of failing hard.
 6. `search` and `route` can narrow candidates with front-matter filters such as `type`, `project`, `department`, `tag`, `owner` and `system`.
-7. `read --metadata --headings` supports a metadata-first retrieval pass before the full Markdown is loaded.
-8. `search`, `route` and `read` either enforce a fresh index or can explicitly auto-rebuild when `--auto-rebuild` is set.
-9. Runtime commands may detect the current workspace automatically when the shell is already inside a private workspace.
-10. A global per-user workspace registry stores known workspace paths and a default workspace so other agents can resolve the knowledge location automatically on macOS, Windows and Linux.
-11. The installer now targets a shared `~/.agents` home as the primary skill/runtime location and adds a Codex compatibility shim under `~/.codex/bin`.
-12. `serve` exposes the same read-only data through a local web view and now distinguishes `missing`, `stale` and `ok` states with a rebuild action.
+7. `route` now also factors `description`, `summary`, `aliases`, tags, headings and path tokens into its ranking and can return `nearMisses` when no strong hit exists.
+8. `route-debug` explains why a query matched or missed, and `coverage` summarizes whether a topic is strongly or only partially documented.
+9. `read --metadata --headings` supports a metadata-first retrieval pass before the full Markdown is loaded.
+10. `search`, `route` and `read` either enforce a fresh index or can explicitly auto-rebuild when `--auto-rebuild` is set.
+11. Runtime commands may detect the current workspace automatically when the shell is already inside a private workspace.
+12. A global per-user workspace registry stores known workspace paths and a default workspace so other agents can resolve the knowledge location automatically on macOS, Windows and Linux.
+13. The installer now targets a shared `~/.agents` home as the primary skill/runtime location and adds a Codex compatibility shim under `~/.codex/bin`.
+14. `serve` exposes the same read-only data through a local web view and now distinguishes `missing`, `stale` and `ok` states with a rebuild action.
 
 ## Onboarding Model
 
@@ -86,7 +88,7 @@ Phase 1 now explicitly supports a two-step retrieval model:
 
 This keeps the agent loop lighter and encourages stronger filenames plus front matter without forcing a rigid folder taxonomy.
 
-The preferred front-matter contract now includes both `description` and `summary`, so agents can inspect a short routing description before deciding whether to load full Markdown content.
+The preferred front-matter contract now includes `description`, `summary` and optional `aliases`, so agents can inspect short routing descriptions and alternate search phrases before deciding whether to load full Markdown content.
 
 ## Global Workspace Discovery
 

@@ -354,6 +354,65 @@ Das Budget ist knapp.
     expect(readPayload.data.headings.some((item: { headingPath: string }) => item.headingPath === "Projekt Alpha Roadmap > Ziele")).toBe(true);
   });
 
+  it("exposes route-debug and coverage output for audit-style queries", () => {
+    const tempRoot = createTempWorkspace();
+    tempPaths.push(tempRoot);
+    const workspaceRoot = path.join(tempRoot, "workspace");
+    setupWorkspace({ workspaceRoot, gitInit: false });
+    fs.writeFileSync(
+      path.join(workspaceRoot, "knowledge/canonical", "google-cloud.md"),
+      `---
+id: process.google-cloud.rechnung
+title: Google Cloud Rechnung buchen
+type: process
+status: active
+tags:
+  - google
+  - cloud
+description: Buchungslogik für Google Cloud Rechnungen.
+summary: Beleggrundlage und Buchungslogik für Google Cloud.
+aliases:
+  - Google Cloud Statement
+  - Beleggrundlage buchen
+---
+# Google Cloud Rechnung buchen
+
+## Beleggrundlage
+
+Google Cloud Statements dienen als Beleggrundlage.
+`
+    );
+
+    const rebuild = runCli(["index", "rebuild", "--workspace", workspaceRoot, "--json"]);
+    expect(rebuild.status).toBe(0);
+
+    const routeDebugResult = runCli([
+      "route-debug",
+      "Google Cloud Statement Beleggrundlage buchen",
+      "--workspace",
+      workspaceRoot,
+      "--auto-rebuild",
+      "--json"
+    ]);
+    expect(routeDebugResult.status).toBe(0);
+    const routeDebugPayload = JSON.parse(routeDebugResult.stdout);
+    expect(routeDebugPayload.data.groups[0].docId).toBe("process.google-cloud.rechnung");
+    expect(routeDebugPayload.data.groups[0].signals.matchedFields).toContain("aliases");
+
+    const coverageResult = runCli([
+      "coverage",
+      "Google Cloud Statement Beleggrundlage buchen",
+      "--workspace",
+      workspaceRoot,
+      "--auto-rebuild",
+      "--json"
+    ]);
+    expect(coverageResult.status).toBe(0);
+    const coveragePayload = JSON.parse(coverageResult.stdout);
+    expect(coveragePayload.data.state).toBe("strong");
+    expect(coveragePayload.data.primary[0].docId).toBe("process.google-cloud.rechnung");
+  });
+
   it("serializes concurrent auto-rebuild writers while allowing both search commands to succeed", async () => {
     const tempRoot = createTempWorkspace();
     tempPaths.push(tempRoot);

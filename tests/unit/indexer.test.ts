@@ -5,7 +5,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { CliError } from "../../src/lib/errors";
-import { rebuildIndex, search, verifyIndex } from "../../src/lib/indexer";
+import { coverage, rebuildIndex, route, routeDebug, search, verifyIndex } from "../../src/lib/indexer";
 import { setupWorkspace } from "../../src/lib/workspace";
 
 const tempPaths: string[] = [];
@@ -197,5 +197,103 @@ Die Buchhaltung verarbeitet AWS-Rechnungen monatlich.
     expect(result.results[0]?.metadata.department).toBe("entwicklung");
     expect(result.results[0]?.metadata.description).toContain("Projektstatus");
     expect(result.results[0]?.metadata.summary).toContain("Projekt Alpha");
+  });
+
+  it("supports alias-aware routing and exposes near misses", () => {
+    const workspaceRoot = createTempWorkspace();
+    tempPaths.push(workspaceRoot);
+    setupWorkspace({ workspaceRoot, gitInit: false });
+
+    writeKnowledgeFile(
+      workspaceRoot,
+      "processes/google-cloud-rechnung.md",
+      `---
+id: process.google-cloud.rechnung
+title: Google Cloud Rechnung buchen
+type: process
+status: active
+tags:
+  - google
+  - cloud
+  - buchen
+description: Buchungslogik für Google Cloud Rechnungen.
+summary: Beleggrundlage und Buchungslogik für Google Cloud.
+aliases:
+  - Google Cloud Statement
+  - Beleggrundlage buchen
+---
+# Google Cloud Rechnung buchen
+
+## Beleggrundlage
+
+Google Cloud Statements dienen als Beleggrundlage.
+`
+    );
+
+    writeKnowledgeFile(
+      workspaceRoot,
+      "processes/google-ads-rechnung.md",
+      `---
+id: process.google-ads.rechnung
+title: Google Ads Rechnung prüfen
+type: process
+status: draft
+tags:
+  - google
+  - ads
+description: Prüfschritte für Google Ads Rechnungen.
+summary: Relevante Prüfschritte für Google Ads.
+aliases:
+  - Google Rechnung
+---
+# Google Ads Rechnung prüfen
+`
+    );
+
+    rebuildIndex(workspaceRoot);
+
+    const routed = route(workspaceRoot, "Google Cloud Statement Beleggrundlage buchen", 5);
+    expect(routed.groups.length).toBeGreaterThan(0);
+    expect(routed.groups[0]?.docId).toBe("process.google-cloud.rechnung");
+    expect(routed.groups[0]?.metadata.aliases).toContain("Google Cloud Statement");
+    expect(routed.groups[0]?.signals.matchedFields).toContain("aliases");
+    expect(routed.nearMisses.some((item) => item.docId === "process.google-ads.rechnung")).toBe(true);
+  });
+
+  it("explains routing decisions and reports partial coverage", () => {
+    const workspaceRoot = createTempWorkspace();
+    tempPaths.push(workspaceRoot);
+    setupWorkspace({ workspaceRoot, gitInit: false });
+
+    writeKnowledgeFile(
+      workspaceRoot,
+      "processes/cardif-versicherungen.md",
+      `---
+id: process.cardif.versicherung
+title: Cardif Leasingratenversicherung buchen
+type: process
+status: active
+tags:
+  - cardif
+  - versicherung
+description: Wiederverwendung und Buchung der monatlichen Cardif-Versicherung.
+summary: Monatliche Cardif-Versicherung mit Wiederverwendungslogik.
+aliases:
+  - Cardif monatlich
+---
+# Cardif Leasingratenversicherung buchen
+`
+    );
+
+    rebuildIndex(workspaceRoot);
+
+    const debug = routeDebug(workspaceRoot, "Cardif Leasingratenversicherung monatlich wiederverwenden buchen", 5);
+    expect(debug.candidates.length).toBeGreaterThan(0);
+    expect(debug.candidates[0]?.docId).toBe("process.cardif.versicherung");
+    expect(debug.candidates[0]?.reasons.some((reason) => reason.includes("aliases") || reason.includes("title"))).toBe(true);
+
+    const coverageResult = coverage(workspaceRoot, "Cardif Erstattung Sonderfall", 5);
+    expect(["partial", "strong"]).toContain(coverageResult.state);
+    expect(coverageResult.primary.length + coverageResult.nearMisses.length).toBeGreaterThan(0);
   });
 });

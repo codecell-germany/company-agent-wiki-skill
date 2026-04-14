@@ -12,10 +12,15 @@ import { parseMarkdownDocument } from "./markdown";
 import { loadWorkspaceConfig, resolveRootPath, resolveWorkspacePaths } from "./workspace";
 import { withWorkspaceWriteLock } from "./write-lock";
 import type {
+  CoverageResult,
   DocumentHeadingView,
   DocumentMetadataView,
   DocumentRecord,
   IndexManifest,
+  RouteDebugCandidate,
+  RouteDebugResult,
+  RouteGroup,
+  RouteResult,
   RootSnapshot,
   SearchFilters,
   SearchResult,
@@ -113,6 +118,10 @@ function createSchema(database: Database.Database): void {
     CREATE VIRTUAL TABLE documents_fts USING fts5(
       doc_id UNINDEXED,
       title,
+      description,
+      summary,
+      aliases,
+      rel_path,
       body_text,
       tags,
       tokenize = 'porter unicode61'
@@ -135,6 +144,9 @@ function createSchema(database: Database.Database): void {
       section_id UNINDEXED,
       doc_id UNINDEXED,
       title,
+      description,
+      summary,
+      aliases,
       heading,
       heading_path,
       content,
@@ -192,6 +204,7 @@ function insertRoot(database: Database.Database, snapshot: RootSnapshot, indexed
 }
 
 function insertDocument(database: Database.Database, document: DocumentRecord): void {
+  const searchableMetadata = extractSearchableMetadata(document.frontmatter);
   database
     .prepare(
       `
@@ -220,14 +233,24 @@ function insertDocument(database: Database.Database, document: DocumentRecord): 
     .prepare(
       `
         INSERT INTO documents_fts (
-          doc_id, title, body_text, tags
-        ) VALUES (?, ?, ?, ?)
+          doc_id, title, description, summary, aliases, rel_path, body_text, tags
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `
     )
-    .run(document.docId, document.title, document.bodyText, document.tags.join(" "));
+    .run(
+      document.docId,
+      document.title,
+      searchableMetadata.description ?? "",
+      searchableMetadata.summary ?? "",
+      searchableMetadata.aliases.join(" "),
+      document.relPath,
+      document.bodyText,
+      document.tags.join(" ")
+    );
 }
 
 function insertSections(database: Database.Database, document: DocumentRecord, sections: SectionRecord[]): void {
+  const searchableMetadata = extractSearchableMetadata(document.frontmatter);
   const sectionInsert = database.prepare(
     `
       INSERT INTO sections (
@@ -238,10 +261,10 @@ function insertSections(database: Database.Database, document: DocumentRecord, s
 
   const ftsInsert = database.prepare(
     `
-      INSERT INTO sections_fts (
-        rowid, section_id, doc_id, title, heading, heading_path, content, tags
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `
+        INSERT INTO sections_fts (
+          rowid, section_id, doc_id, title, description, summary, aliases, heading, heading_path, content, tags
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `
   );
 
   for (const section of sections) {
@@ -261,6 +284,9 @@ function insertSections(database: Database.Database, document: DocumentRecord, s
       section.sectionId,
       section.docId,
       document.title,
+      searchableMetadata.description ?? "",
+      searchableMetadata.summary ?? "",
+      searchableMetadata.aliases.join(" "),
       section.heading,
       section.headingPath,
       section.content,
@@ -299,6 +325,45 @@ function normalizeStringArrayValue(value: unknown): string[] {
   return [];
 }
 
+function dedupeNormalized(values: string[]): string[] {
+  const deduped = new Map<string, string>();
+  for (const value of values) {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      continue;
+    }
+    const normalized = trimmed.toLocaleLowerCase("de-DE");
+    if (!deduped.has(normalized)) {
+      deduped.set(normalized, trimmed);
+    }
+  }
+  return [...deduped.values()];
+}
+
+function collectAliasValues(frontmatter: Record<string, unknown>): string[] {
+  return dedupeNormalized([
+    ...normalizeStringArrayValue(frontmatter.aliases),
+    ...normalizeStringArrayValue(frontmatter.search_terms),
+    ...normalizeStringArrayValue(frontmatter.searchTerms),
+    ...normalizeStringArrayValue(frontmatter.synonyms)
+  ]);
+}
+
+function extractSearchableMetadata(frontmatter: Record<string, unknown>): {
+  description?: string;
+  summary?: string;
+  aliases: string[];
+} {
+  const description = normalizeStringValue(frontmatter.description) ?? normalizeStringValue(frontmatter.summary);
+  const summary = normalizeStringValue(frontmatter.summary) ?? description;
+  const aliases = collectAliasValues(frontmatter);
+  return {
+    description,
+    summary,
+    aliases
+  };
+}
+
 function buildDocumentMetadataView(row: {
   docId: string;
   title: string;
@@ -311,8 +376,7 @@ function buildDocumentMetadataView(row: {
 }): DocumentMetadataView {
   const frontmatter = JSON.parse(row.frontmatterJson) as Record<string, unknown>;
   const tags = JSON.parse(row.tagsJson) as string[];
-  const description = normalizeStringValue(frontmatter.description) ?? normalizeStringValue(frontmatter.summary);
-  const summary = normalizeStringValue(frontmatter.summary) ?? description;
+  const searchableMetadata = extractSearchableMetadata(frontmatter);
 
   return {
     docId: row.docId,
@@ -322,8 +386,9 @@ function buildDocumentMetadataView(row: {
     docType: row.docType ?? undefined,
     status: row.status ?? undefined,
     tags,
-    description,
-    summary,
+    aliases: searchableMetadata.aliases,
+    description: searchableMetadata.description,
+    summary: searchableMetadata.summary,
     project: normalizeStringValue(frontmatter.project),
     department: normalizeStringValue(frontmatter.department),
     owners: normalizeStringArrayValue(frontmatter.owners),
@@ -508,6 +573,19 @@ export function verifyIndex(workspaceRoot: string): VerifyResult {
     throw error;
   }
 
+  if (manifest.schemaVersion !== INDEX_SCHEMA_VERSION) {
+    return {
+      ok: false,
+      state: "stale",
+      manifest,
+      roots: manifest.roots.map((root) => ({
+        id: root.id,
+        ok: false,
+        reason: `Indexed schema version ${manifest.schemaVersion} does not match expected schema ${INDEX_SCHEMA_VERSION}.`
+      }))
+    };
+  }
+
   const roots = manifest.roots.map((expected) => {
     const rootConfig = config.roots.find((root) => root.id === expected.id);
     if (!rootConfig) {
@@ -607,8 +685,9 @@ function openVerifiedDatabase(
   };
 }
 
-function buildFtsMatchQuery(query: string): string {
-  const tokens = query.match(/[\p{L}\p{N}]+/gu)?.map((token) => token.trim()).filter(Boolean) ?? [];
+function extractQueryTokens(query: string): string[] {
+  const rawTokens = query.match(/[\p{L}\p{N}]+/gu)?.map((token) => token.trim()).filter(Boolean) ?? [];
+  const tokens = dedupeNormalized(rawTokens);
   if (tokens.length === 0) {
     throw new CliError(
       "INVALID_QUERY",
@@ -617,7 +696,172 @@ function buildFtsMatchQuery(query: string): string {
       { hint: "Use letters or numbers in the query, for example: KI Telefonassistent Buchhaltung." }
     );
   }
-  return tokens.map((token) => `"${token.replace(/"/g, '""')}"`).join(" ");
+  return tokens;
+}
+
+function buildFtsMatchQuery(query: string): string {
+  return extractQueryTokens(query)
+    .map((token) => `"${token.replace(/"/g, '""')}"`)
+    .join(" OR ");
+}
+
+function normalizeComparableText(value: string | undefined): string {
+  if (!value) {
+    return "";
+  }
+
+  return value
+    .normalize("NFD")
+    .replace(/\p{M}+/gu, "")
+    .replace(/ß/gu, "ss")
+    .toLocaleLowerCase("de-DE")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim()
+    .replace(/\s+/gu, " ");
+}
+
+function includesComparableToken(haystack: string, token: string): boolean {
+  if (!haystack || !token) {
+    return false;
+  }
+  return haystack.includes(token);
+}
+
+function buildFieldHitReasons(matchedFields: string[], exactPhraseFields: string[]): string[] {
+  const reasons: string[] = [];
+  if (exactPhraseFields.length > 0) {
+    reasons.push(`Exakte Phrasenübereinstimmung in: ${exactPhraseFields.join(", ")}`);
+  }
+  if (matchedFields.length > 0) {
+    reasons.push(`Token-Treffer in: ${matchedFields.join(", ")}`);
+  }
+  return reasons;
+}
+
+function chooseBestHeading(queryTokens: string[], headings: string[]): string {
+  if (headings.length === 0) {
+    return "Document";
+  }
+
+  let bestHeading = headings[0];
+  let bestScore = -1;
+  for (const heading of headings) {
+    const normalizedHeading = normalizeComparableText(heading);
+    let score = 0;
+    for (const token of queryTokens) {
+      if (includesComparableToken(normalizedHeading, normalizeComparableText(token))) {
+        score += 1;
+      }
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      bestHeading = heading;
+    }
+  }
+  return bestHeading;
+}
+
+function buildRouteSignals(
+  query: string,
+  metadata: DocumentMetadataView,
+  headingPath: string
+): { score: number; matchedTokens: string[]; matchedFields: string[]; exactPhraseFields: string[]; coverage: number; reasons: string[] } {
+  const tokens = extractQueryTokens(query).map((token) => normalizeComparableText(token));
+  const normalizedQuery = normalizeComparableText(query);
+  const normalizedTitle = normalizeComparableText(metadata.title);
+  const normalizedDescription = normalizeComparableText(metadata.description);
+  const normalizedSummary = normalizeComparableText(metadata.summary);
+  const normalizedHeading = normalizeComparableText(headingPath);
+  const normalizedRelPath = normalizeComparableText(metadata.relPath);
+  const normalizedTags = metadata.tags.map((entry) => normalizeComparableText(entry));
+  const normalizedAliases = metadata.aliases.map((entry) => normalizeComparableText(entry));
+
+  const matchedTokens = new Set<string>();
+  const matchedFields = new Set<string>();
+  const exactPhraseFields = new Set<string>();
+  let signalScore = 0;
+
+  const addExactPhrase = (field: string, amount: number, haystack: string | string[]): void => {
+    const hit = Array.isArray(haystack)
+      ? haystack.some((entry) => entry.includes(normalizedQuery))
+      : haystack.includes(normalizedQuery);
+    if (!normalizedQuery || !hit) {
+      return;
+    }
+    exactPhraseFields.add(field);
+    matchedFields.add(field);
+    signalScore += amount;
+  };
+
+  addExactPhrase("title", 6, normalizedTitle);
+  addExactPhrase("description", 5, normalizedDescription);
+  addExactPhrase("summary", 4.5, normalizedSummary);
+  addExactPhrase("aliases", 6.5, normalizedAliases);
+  addExactPhrase("headings", 5.5, normalizedHeading);
+  addExactPhrase("path", 4, normalizedRelPath);
+
+  for (const token of tokens) {
+    let tokenMatched = false;
+
+    if (includesComparableToken(normalizedTitle, token)) {
+      matchedFields.add("title");
+      signalScore += 3.5;
+      tokenMatched = true;
+    }
+    if (includesComparableToken(normalizedDescription, token)) {
+      matchedFields.add("description");
+      signalScore += 3;
+      tokenMatched = true;
+    }
+    if (includesComparableToken(normalizedSummary, token)) {
+      matchedFields.add("summary");
+      signalScore += 2.5;
+      tokenMatched = true;
+    }
+    if (includesComparableToken(normalizedHeading, token)) {
+      matchedFields.add("headings");
+      signalScore += 3;
+      tokenMatched = true;
+    }
+    if (includesComparableToken(normalizedRelPath, token)) {
+      matchedFields.add("path");
+      signalScore += 2;
+      tokenMatched = true;
+    }
+    if (normalizedTags.some((entry) => entry === token || includesComparableToken(entry, token))) {
+      matchedFields.add("tags");
+      signalScore += 3.5;
+      tokenMatched = true;
+    }
+    if (normalizedAliases.some((entry) => entry === token || includesComparableToken(entry, token))) {
+      matchedFields.add("aliases");
+      signalScore += 4;
+      tokenMatched = true;
+    }
+
+    if (tokenMatched) {
+      matchedTokens.add(token);
+    }
+  }
+
+  const coverage = tokens.length === 0 ? 0 : matchedTokens.size / tokens.length;
+  if (coverage === 1 && tokens.length > 1) {
+    signalScore += 4;
+  } else {
+    signalScore += coverage * 2;
+  }
+
+  const denominator = Math.max(10, tokens.length * 12);
+  const score = Number(Math.min(1, signalScore / denominator).toFixed(6));
+
+  return {
+    score,
+    matchedTokens: [...matchedTokens.values()],
+    matchedFields: [...matchedFields.values()],
+    exactPhraseFields: [...exactPhraseFields.values()],
+    coverage: Number(coverage.toFixed(6)),
+    reasons: buildFieldHitReasons([...matchedFields.values()], [...exactPhraseFields.values()])
+  };
 }
 
 function isFtsQueryError(error: unknown): boolean {
@@ -660,7 +904,7 @@ export function search(
         d.status as status,
         d.tags_json as tagsJson,
         d.frontmatter_json as frontmatterJson,
-        snippet(sections_fts, 5, '<mark>', '</mark>', ' … ', 18) as snippet,
+        snippet(sections_fts, 8, '<mark>', '</mark>', ' … ', 18) as snippet,
         bm25(sections_fts) as score
       FROM sections_fts
       JOIN sections s ON s.row_id = sections_fts.rowid
@@ -671,25 +915,41 @@ export function search(
     `
   );
 
+  const compareSearchResults = (left: SearchResult, right: SearchResult): number => {
+    if (right.score !== left.score) {
+      return right.score - left.score;
+    }
+    return left.rawScore - right.rawScore;
+  };
+
   let results: SearchResult[] = [];
   try {
     const sectionRows = sectionStatement.all(safeQuery, limit * 8) as Array<
       Omit<SearchResult, "metadata"> & { docType?: string | null; status?: string | null; tagsJson: string; frontmatterJson: string }
     >;
     results = sectionRows
-      .map((row) => ({
-        docId: row.docId,
-        sectionId: row.sectionId,
-        title: row.title,
-        headingPath: row.headingPath,
-        absPath: row.absPath,
-        relPath: row.relPath,
-        snippet: row.snippet,
-        score: normalizeSearchScore(row.score),
-        rawScore: row.score,
-        metadata: buildDocumentMetadataView(row)
-      }))
+      .map((row) => {
+        const metadata = buildDocumentMetadataView(row);
+        const routeSignals = buildRouteSignals(query, metadata, row.headingPath);
+        const combinedScore = Number(
+          Math.min(1, normalizeSearchScore(row.score) * 0.35 + routeSignals.score * 0.65).toFixed(6)
+        );
+
+        return {
+          docId: row.docId,
+          sectionId: row.sectionId,
+          title: row.title,
+          headingPath: row.headingPath,
+          absPath: row.absPath,
+          relPath: row.relPath,
+          snippet: row.snippet,
+          score: combinedScore,
+          rawScore: row.score,
+          metadata
+        };
+      })
       .filter((row) => matchesFilters(row.metadata, options?.filters))
+      .sort(compareSearchResults)
       .slice(0, limit);
 
     if (results.length < limit) {
@@ -706,7 +966,7 @@ export function search(
             d.status as status,
             d.tags_json as tagsJson,
             d.frontmatter_json as frontmatterJson,
-            snippet(documents_fts, 2, '<mark>', '</mark>', ' … ', 24) as snippet,
+            snippet(documents_fts, 6, '<mark>', '</mark>', ' … ', 24) as snippet,
             bm25(documents_fts) as score
           FROM documents_fts
           JOIN documents d ON d.doc_id = documents_fts.doc_id
@@ -721,6 +981,8 @@ export function search(
         Omit<SearchResult, "metadata"> & { docType?: string | null; status?: string | null; tagsJson: string; frontmatterJson: string }
       >;
       for (const row of documentRows) {
+        const metadata = buildDocumentMetadataView(row);
+        const routeSignals = buildRouteSignals(query, metadata, row.headingPath);
         const hydrated: SearchResult = {
           docId: row.docId,
           sectionId: row.sectionId,
@@ -729,9 +991,11 @@ export function search(
           absPath: row.absPath,
           relPath: row.relPath,
           snippet: row.snippet,
-          score: normalizeSearchScore(row.score),
+          score: Number(
+            Math.min(1, normalizeSearchScore(row.score) * 0.35 + routeSignals.score * 0.65).toFixed(6)
+          ),
           rawScore: row.score,
-          metadata: buildDocumentMetadataView(row)
+          metadata
         };
 
         if (existingDocIds.has(hydrated.docId) || !matchesFilters(hydrated.metadata, options?.filters)) {
@@ -743,6 +1007,7 @@ export function search(
           break;
         }
       }
+      results.sort(compareSearchResults);
     }
   } catch (error) {
     closeDatabaseQuietly(database);
@@ -764,14 +1029,28 @@ export function search(
   return { manifest: manifest as IndexManifest, results };
 }
 
-export function route(
-  workspaceRoot: string,
+function isStrongRouteCandidate(candidate: RouteGroup): boolean {
+  return (
+    candidate.score >= 0.58 ||
+    candidate.signals.exactPhraseFields.some((field) => ["aliases", "title", "headings"].includes(field)) ||
+    (candidate.signals.coverage >= 0.6 && candidate.score >= 0.42)
+  );
+}
+
+function isNearMissRouteCandidate(candidate: RouteGroup): boolean {
+  return candidate.score >= 0.18 || candidate.signals.matchedTokens.length > 0;
+}
+
+function compareRouteCandidates(left: RouteGroup, right: RouteGroup): number {
+  if (right.score !== left.score) {
+    return right.score - left.score;
+  }
+  return left.rawScore - right.rawScore;
+}
+
+function buildRouteGroup(
   query: string,
-  limit: number,
-  options?: { autoRebuild?: boolean; filters?: SearchFilters }
-): {
-  manifest: IndexManifest;
-  groups: Array<{
+  candidate: {
     docId: string;
     title: string;
     absPath: string;
@@ -779,49 +1058,239 @@ export function route(
     bestSectionId: string;
     bestHeading: string;
     bestSnippet: string;
-    score: number;
     rawScore: number;
     metadata: DocumentMetadataView;
-  }>;
-} {
-  const { manifest, results } = search(workspaceRoot, query, limit * 3, options);
-  const groups = new Map<
-    string,
-    {
+  },
+  source: "fts" | "fallback"
+): RouteGroup {
+  const routeSignals = buildRouteSignals(query, candidate.metadata, candidate.bestHeading);
+  return {
+    docId: candidate.docId,
+    title: candidate.title,
+    absPath: candidate.absPath,
+    relPath: candidate.relPath,
+    bestSectionId: candidate.bestSectionId,
+    bestHeading: candidate.bestHeading,
+    bestSnippet: candidate.bestSnippet,
+    score: routeSignals.score,
+    rawScore: candidate.rawScore,
+    metadata: candidate.metadata,
+    signals: {
+      matchedTokens: routeSignals.matchedTokens,
+      matchedFields: routeSignals.matchedFields,
+      exactPhraseFields: routeSignals.exactPhraseFields,
+      coverage: routeSignals.coverage,
+      source
+    }
+  };
+}
+
+function listFallbackRouteCandidates(
+  workspaceRoot: string,
+  query: string,
+  options?: { autoRebuild?: boolean; filters?: SearchFilters }
+): { manifest: IndexManifest; candidates: RouteDebugCandidate[] } {
+  let database: Database.Database | undefined;
+  let manifest: IndexManifest | undefined;
+  try {
+    const opened = openVerifiedDatabase(workspaceRoot, options);
+    database = opened.database;
+    manifest = opened.manifest;
+
+    const rows = database
+      .prepare(
+        `
+          SELECT
+            d.doc_id as docId,
+            d.title as title,
+            d.abs_path as absPath,
+            d.rel_path as relPath,
+            d.doc_type as docType,
+            d.status as status,
+            d.tags_json as tagsJson,
+            d.frontmatter_json as frontmatterJson,
+            GROUP_CONCAT(s.heading_path, ' || ') as headingPaths
+          FROM documents d
+          LEFT JOIN sections s ON s.doc_id = d.doc_id
+          GROUP BY d.doc_id
+        `
+      )
+      .all() as Array<{
       docId: string;
       title: string;
       absPath: string;
       relPath: string;
-      bestSectionId: string;
-      bestHeading: string;
-      bestSnippet: string;
-      score: number;
-      rawScore: number;
-      metadata: DocumentMetadataView;
-    }
-  >();
+      docType?: string | null;
+      status?: string | null;
+      tagsJson: string;
+      frontmatterJson: string;
+      headingPaths?: string | null;
+    }>;
+
+    const queryTokens = extractQueryTokens(query);
+    const candidates = rows
+      .map((row) => {
+        const metadata = buildDocumentMetadataView(row);
+        if (!matchesFilters(metadata, options?.filters)) {
+          return undefined;
+        }
+
+        const headings = (row.headingPaths || "")
+          .split(" || ")
+          .map((entry) => entry.trim())
+          .filter(Boolean);
+        const bestHeading = chooseBestHeading(queryTokens, headings);
+        const fallbackGroup = buildRouteGroup(
+          query,
+          {
+            docId: row.docId,
+            title: row.title,
+            absPath: row.absPath,
+            relPath: row.relPath,
+            bestSectionId: `${row.docId}#document`,
+            bestHeading,
+            bestSnippet: metadata.description || metadata.summary || row.title,
+            rawScore: 0,
+            metadata
+          },
+          "fallback"
+        );
+
+        return {
+          ...fallbackGroup,
+          reasons: buildFieldHitReasons(fallbackGroup.signals.matchedFields, fallbackGroup.signals.exactPhraseFields)
+        } satisfies RouteDebugCandidate;
+      })
+      .filter((candidate): candidate is RouteDebugCandidate => Boolean(candidate))
+      .sort(compareRouteCandidates);
+
+    closeDatabaseQuietly(database);
+    return {
+      manifest: manifest as IndexManifest,
+      candidates
+    };
+  } catch (error) {
+    closeDatabaseQuietly(database);
+    throwKnownDatabaseError(error, workspaceRoot);
+  }
+  return { manifest: manifest as IndexManifest, candidates: [] };
+}
+
+function analyzeRouteQuery(
+  workspaceRoot: string,
+  query: string,
+  limit: number,
+  options?: { autoRebuild?: boolean; filters?: SearchFilters }
+): RouteDebugResult {
+  const { manifest, results } = search(workspaceRoot, query, limit * 8, options);
+  const groupedCandidates = new Map<string, RouteDebugCandidate>();
 
   for (const result of results) {
-    if (groups.has(result.docId)) {
-      continue;
+    const routeGroup = buildRouteGroup(
+      query,
+      {
+        docId: result.docId,
+        title: result.title,
+        absPath: result.absPath,
+        relPath: result.relPath,
+        bestSectionId: result.sectionId,
+        bestHeading: result.headingPath,
+        bestSnippet: result.snippet,
+        rawScore: result.rawScore,
+        metadata: result.metadata
+      },
+      "fts"
+    );
+    const candidate: RouteDebugCandidate = {
+      ...routeGroup,
+      reasons: buildFieldHitReasons(routeGroup.signals.matchedFields, routeGroup.signals.exactPhraseFields)
+    };
+    const existing = groupedCandidates.get(candidate.docId);
+    if (!existing || compareRouteCandidates(candidate, existing) < 0) {
+      groupedCandidates.set(candidate.docId, candidate);
     }
-    groups.set(result.docId, {
-      docId: result.docId,
-      title: result.title,
-      absPath: result.absPath,
-      relPath: result.relPath,
-      bestSectionId: result.sectionId,
-      bestHeading: result.headingPath,
-      bestSnippet: result.snippet,
-      score: result.score,
-      rawScore: result.rawScore,
-      metadata: result.metadata
-    });
   }
+
+  if (groupedCandidates.size < limit + 3 || [...groupedCandidates.values()].filter(isStrongRouteCandidate).length === 0) {
+    const fallback = listFallbackRouteCandidates(workspaceRoot, query, options);
+    for (const candidate of fallback.candidates) {
+      const existing = groupedCandidates.get(candidate.docId);
+      if (!existing || compareRouteCandidates(candidate, existing) < 0) {
+        groupedCandidates.set(candidate.docId, candidate);
+      }
+    }
+  }
+
+  const sortedCandidates = [...groupedCandidates.values()].sort(compareRouteCandidates);
+  const groups = sortedCandidates.filter(isStrongRouteCandidate).slice(0, limit);
+  const selectedIds = new Set(groups.map((candidate) => candidate.docId));
+  const nearMisses = sortedCandidates
+    .filter((candidate) => !selectedIds.has(candidate.docId) && isNearMissRouteCandidate(candidate))
+    .slice(0, Math.max(3, Math.min(limit, 5)));
 
   return {
     manifest,
-    groups: [...groups.values()].slice(0, limit)
+    query,
+    tokens: extractQueryTokens(query),
+    groups,
+    nearMisses,
+    candidates: sortedCandidates.slice(0, Math.max(limit + 5, 8))
+  };
+}
+
+export function route(
+  workspaceRoot: string,
+  query: string,
+  limit: number,
+  options?: { autoRebuild?: boolean; filters?: SearchFilters }
+): RouteResult {
+  const analysis = analyzeRouteQuery(workspaceRoot, query, limit, options);
+  return {
+    manifest: analysis.manifest,
+    groups: analysis.groups,
+    nearMisses: analysis.nearMisses
+  };
+}
+
+export function routeDebug(
+  workspaceRoot: string,
+  query: string,
+  limit: number,
+  options?: { autoRebuild?: boolean; filters?: SearchFilters }
+): RouteDebugResult {
+  return analyzeRouteQuery(workspaceRoot, query, limit, options);
+}
+
+export function coverage(
+  workspaceRoot: string,
+  query: string,
+  limit: number,
+  options?: { autoRebuild?: boolean; filters?: SearchFilters }
+): CoverageResult {
+  const analysis = analyzeRouteQuery(workspaceRoot, query, limit, options);
+  const topStrong = analysis.groups[0];
+  let state: CoverageResult["state"] = "missing";
+  let warning: string | undefined;
+
+  if (analysis.groups.length > 0 && topStrong && topStrong.score >= 0.65) {
+    state = "strong";
+  } else if (analysis.groups.length > 0 || analysis.nearMisses.length > 0) {
+    state = "partial";
+    warning =
+      "Die Query ist teilweise abgedeckt. Prüfe die near misses und ergänze bei Bedarf `aliases`, `description`, `summary` oder präzisere Überschriften.";
+  } else {
+    warning =
+      "Keine belastbare Dokumentabdeckung gefunden. Lege Routing-Signale wie `aliases`, `description`, `summary` oder klarere Headings an.";
+  }
+
+  return {
+    manifest: analysis.manifest,
+    query,
+    state,
+    primary: analysis.groups.slice(0, Math.min(limit, 3)),
+    supporting: analysis.groups.slice(3, Math.max(3, limit)),
+    nearMisses: analysis.nearMisses,
+    warning
   };
 }
 

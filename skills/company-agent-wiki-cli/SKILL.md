@@ -124,13 +124,15 @@ Der empfohlene Lesepfad ist jetzt explizit metadata-first:
 
 1. Zuerst mit `search` oder `route` Kandidaten finden.
 2. Wenn möglich direkt mit Front-Matter-Filtern eingrenzen, zum Beispiel `--type`, `--project`, `--department`, `--tag`, `--owner` oder `--system`.
-3. Danach Kandidaten mit `read --metadata --headings --auto-rebuild` prüfen.
-4. Erst wenn Metadaten, Dateiname und Überschriften passen, den Volltext mit `read --auto-rebuild` laden.
+3. Wenn `route` keine starken Treffer liefert, `nearMisses` prüfen oder `route-debug` verwenden.
+4. Danach Kandidaten mit `read --metadata --headings --auto-rebuild` prüfen.
+5. Erst wenn Metadaten, Dateiname und Überschriften passen, den Volltext mit `read --auto-rebuild` laden.
 
 Beispiel:
 
 ```bash
 company-agent-wiki-cli route "Projekt Alpha Budget" --workspace /absolute/path --type project --project alpha --auto-rebuild --json
+company-agent-wiki-cli route-debug "Projekt Alpha Budget" --workspace /absolute/path --type project --project alpha --auto-rebuild --json
 company-agent-wiki-cli read --workspace /absolute/path --doc-id canonical.projekt-alpha-roadmap --metadata --headings --auto-rebuild --json
 company-agent-wiki-cli read --workspace /absolute/path --doc-id canonical.projekt-alpha-roadmap --auto-rebuild
 ```
@@ -159,6 +161,9 @@ tags:
   - alpha
 description: Klare Kurzbeschreibung für Agenten, bevor der Volltext geladen wird.
 summary: Roadmap und Entscheidungen für Projekt Alpha.
+aliases:
+  - alpha roadmap
+  - projekt alpha budget
 project: alpha
 department: entwicklung
 owners:
@@ -174,7 +179,7 @@ Empfohlener Ablauf:
 
 1. Datei unter `knowledge/canonical/` oder einem anderen registrierten Managed Root anlegen.
 2. Dateiname so wählen, dass er den Inhalt grob repräsentiert, etwa `projekt-alpha-roadmap.md`.
-3. Front Matter inklusive `id`, `description`, `summary` und passenden Routing-Feldern setzen.
+3. Front Matter inklusive `id`, `description`, `summary`, `aliases` und passenden Routing-Feldern setzen.
 4. Wenn der Inhalt auf externer Recherche basiert, Provenienz ergänzen:
    - Quellenstand oder Prüfdokumentation im Dokument
    - Datum der Prüfung
@@ -220,6 +225,9 @@ tags:
   - netzwerk
 description: Kurzbeschreibung der Beziehung und ihrer Relevanz für Agenten.
 summary: Rolle, Status und Relevanz des Partners im CodeCell-Netzwerk.
+aliases:
+  - netzwerkpartner
+  - potenzieller kunde
 department: vertrieb
 owners:
   - nikolas-gottschol
@@ -264,6 +272,9 @@ company-agent-wiki-cli onboarding company \
 - For agent workflows, prefer `--auto-rebuild` on `search`, `route`, `read` and `serve` unless you explicitly want strict stale-index failures.
 - Parallel `search`, `route`, `read`, `history` and `diff` calls against the same workspace are now intended to work.
 - Write paths are serialized per workspace. If one agent is rebuilding the index or applying onboarding writes, other write paths wait behind that workspace lock instead of colliding.
+- `aliases` ist das offizielle Front-Matter-Feld für alternative Suchphrasen. `synonyms` und `search_terms` werden ebenfalls akzeptiert und in denselben Alias-Index übernommen.
+- Wenn `route` leer wirkt, zuerst `nearMisses` prüfen oder `route-debug` ausführen, bevor du mit manueller Volltextsuche improvisierst.
+- Für Audit-Fragen kann `coverage` zeigen, ob ein Thema stark, teilweise oder noch gar nicht dokumentiert ist.
 - Do not put private company knowledge into the public code repository.
 - Use the read-only web view only for browsing, not editing.
 - The company onboarding questionnaire is optional. Every answer may be skipped, answered with “nein” or marked as unknown.

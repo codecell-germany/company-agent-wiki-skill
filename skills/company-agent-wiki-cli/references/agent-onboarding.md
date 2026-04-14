@@ -54,6 +54,7 @@ For frequent edits, the authoring loop can also use the guarded auto-rebuild pat
 
 ```bash
 company-agent-wiki-cli search "KI-Telefonassistent" --workspace /absolute/path --auto-rebuild --json
+company-agent-wiki-cli route-debug "Google Cloud Statement Beleggrundlage buchen" --workspace /absolute/path --auto-rebuild --json
 ```
 
 Parallel reads are allowed. If a write path such as `index rebuild` is already running, later writes wait behind the same workspace lock.

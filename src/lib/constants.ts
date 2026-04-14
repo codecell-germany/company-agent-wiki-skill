@@ -10,8 +10,8 @@ export const INDEX_MANIFEST_FILE = "index-manifest.json";
 export const GLOBAL_REGISTRY_DIR_NAME = "company-agent-wiki";
 export const GLOBAL_REGISTRY_FILE = "workspaces.json";
 export const WORKSPACE_LAYOUT_VERSION = 1;
-export const CLI_SCHEMA_VERSION = "2026-04-13";
-export const INDEX_SCHEMA_VERSION = 1;
+export const CLI_SCHEMA_VERSION = "2026-04-14";
+export const INDEX_SCHEMA_VERSION = 2;
 
 export const DEFAULT_MANAGED_ROOT_ID = "canonical";
 export const DEFAULT_MANAGED_ROOT_PATH = "knowledge/canonical";

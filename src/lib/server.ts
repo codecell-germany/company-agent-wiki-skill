@@ -258,7 +258,13 @@ const CLIENT_SCRIPT = `
         }
         return;
       }
-    for (const item of payload.data.groups) {
+    if (payload.data.groups.length === 0 && payload.data.nearMisses && payload.data.nearMisses.length > 0) {
+      const hint = document.createElement("div");
+      hint.className = "meta";
+      hint.textContent = "Keine starken Treffer. Nahe Kandidaten:";
+      resultsNode.appendChild(hint);
+    }
+    for (const item of [...payload.data.groups, ...(payload.data.nearMisses || [])]) {
       const wrapper = document.createElement("div");
       wrapper.className = "result";
       wrapper.innerHTML = [

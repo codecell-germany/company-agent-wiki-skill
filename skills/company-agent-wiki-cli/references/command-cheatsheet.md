@@ -38,6 +38,8 @@ If not, the CLI can also use the globally registered default workspace.
 company-agent-wiki-cli search "KI-Telefonassistent" --workspace /absolute/path --auto-rebuild --json
 company-agent-wiki-cli search "AWS Rechnung" --workspace /absolute/path --type process --department buchhaltung --auto-rebuild --json
 company-agent-wiki-cli route "vermieter rechnung buchen" --workspace /absolute/path --type process --project finance-ops --auto-rebuild --json
+company-agent-wiki-cli route-debug "Google Cloud Statement Beleggrundlage buchen" --workspace /absolute/path --auto-rebuild --json
+company-agent-wiki-cli coverage "Kfz-Steuer Bescheid Erstattung" --workspace /absolute/path --auto-rebuild --json
 company-agent-wiki-cli read --doc-id process.example --workspace /absolute/path --metadata --headings --auto-rebuild --json
 company-agent-wiki-cli read --doc-id process.example --workspace /absolute/path --auto-rebuild
 ```

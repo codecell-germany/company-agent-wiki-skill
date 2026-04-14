@@ -36,6 +36,9 @@ tags:
   - alpha
 description: Klare Kurzbeschreibung für Agenten, bevor der Volltext geladen wird.
 summary: Roadmap und Entscheidungen für Projekt Alpha.
+aliases:
+  - alpha roadmap
+  - projekt alpha budget
 project: alpha
 department: entwicklung
 owners:
@@ -55,6 +58,7 @@ systems:
 - `tags`: freie Schlagwörter
 - `description`: kurze Pflichtbeschreibung für Agenten-Routing und Metadata-First-Reads
 - `summary`: kurze 1-Zeilen-Zusammenfassung für Agenten-Routing
+- `aliases`: offizielle alternative Suchphrasen für Audit- oder Umgangssprache
 - `project`: Projektkennung oder Projektslug
 - `department`: Abteilung oder Verantwortungsbereich
 - `owners`: verantwortliche Personen oder Teams
@@ -69,6 +73,7 @@ Empfohlen:
 
 - `description` im Front Matter als sofort sichtbare Kurzbeschreibung
 - `summary` im Front Matter für die Kurzbeschreibung
+- `aliases`, wenn Nutzer oder Agenten typischerweise andere Formulierungen verwenden
 - im Dokument ein Abschnitt `## Quellenstand`
 - Prüfdaten oder Prüfdatum
 - Quelle oder URL
@@ -95,7 +100,7 @@ Beispiel:
 
 1. Dokument im passenden Managed Root anlegen, meist unter `knowledge/canonical/`.
 2. Dateinamen so wählen, dass er `title` und Inhalt grob repräsentiert.
-3. Front Matter setzen, idealerweise inklusive `id`, `description` und `summary`.
+3. Front Matter setzen, idealerweise inklusive `id`, `description`, `summary` und `aliases`.
 4. Bei externem Wissen Provenienz ergänzen.
 5. Abschnitte schreiben.
 6. `company-agent-wiki-cli index rebuild --workspace /absolute/path --json` ausführen.
@@ -125,13 +130,15 @@ Wenn bereits ein passendes Dokument existiert:
 
 1. Mit `search` oder `route` Kandidaten finden.
 2. Wenn sinnvoll, direkt mit Filtern wie `--type`, `--project`, `--department`, `--tag`, `--owner`, `--system` eingrenzen.
-3. Kandidaten mit `read --metadata --headings --auto-rebuild` prüfen.
-4. Nur bei ausreichend passender Metadatenlage den Volltext mit `read --auto-rebuild` laden.
+3. Wenn `route` keine starken Treffer liefert, `nearMisses` prüfen oder `route-debug` verwenden.
+4. Kandidaten mit `read --metadata --headings --auto-rebuild` prüfen.
+5. Nur bei ausreichend passender Metadatenlage den Volltext mit `read --auto-rebuild` laden.
 
 Beispiel:
 
 ```bash
 company-agent-wiki-cli route "Projekt Alpha Budget" --workspace /absolute/path --type project --project alpha --auto-rebuild --json
+company-agent-wiki-cli route-debug "Projekt Alpha Budget" --workspace /absolute/path --type project --project alpha --auto-rebuild --json
 company-agent-wiki-cli read --workspace /absolute/path --doc-id canonical.projekt-alpha-roadmap --metadata --headings --auto-rebuild --json
 company-agent-wiki-cli read --workspace /absolute/path --doc-id canonical.projekt-alpha-roadmap --auto-rebuild
 ```
@@ -152,6 +159,9 @@ tags:
   - netzwerk
 description: Kurzbeschreibung der Beziehung und ihrer Relevanz für Agenten.
 summary: Rolle, Status und Relevanz des Partners im CodeCell-Netzwerk.
+aliases:
+  - netzwerkpartner
+  - potenzieller kunde
 department: vertrieb
 owners:
   - nikolas-gottschol
@@ -168,4 +178,4 @@ Typische Dokumentabschnitte:
 
 ## Parallelität
 
-Wenn mehrere Agenten dasselbe Workspace verwenden, serialisiere `search`, `route`, `read`, `history` und `diff` möglichst pro Workspace. Der SQLite-Index ist rebuildbar, aber Phase 1 ist nicht für aggressiv parallele Leser ausgelegt.
+Wenn mehrere Agenten dasselbe Workspace verwenden, dürfen `search`, `route`, `read`, `history` und `diff` parallel laufen. Schreibpfade wie `index rebuild` oder Onboarding-Apply werden dagegen pro Workspace serialisiert.

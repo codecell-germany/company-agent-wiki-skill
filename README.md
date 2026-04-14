@@ -45,6 +45,7 @@ The retrieval model is deliberately inspired by Anthropic's Agent Skills model w
 
 The difference is the retrieval layer.
 Here, front matter is not only stored in Markdown files, but also indexed and filterable through a local SQLite search layer.
+`route` now also understands official alias fields, returns `nearMisses` when no strong match exists and can be inspected through `route-debug` or `coverage`.
 
 ## Architecture visuals
 
@@ -141,6 +142,8 @@ After that, start retrieval:
 ```bash
 company-agent-wiki-cli search "reverse charge aws invoice" --workspace /absolute/path/to/private-company-knowledge --type process --department buchhaltung --auto-rebuild --json
 company-agent-wiki-cli route "KI-Telefonassistent" --workspace /absolute/path/to/private-company-knowledge --type project --project alpha --auto-rebuild --json
+company-agent-wiki-cli route-debug "Google Cloud Statement Beleggrundlage buchen" --workspace /absolute/path/to/private-company-knowledge --auto-rebuild --json
+company-agent-wiki-cli coverage "Kfz-Steuer Bescheid Erstattung" --workspace /absolute/path/to/private-company-knowledge --auto-rebuild --json
 company-agent-wiki-cli read --doc-id process.example --workspace /absolute/path/to/private-company-knowledge --metadata --headings --auto-rebuild --json
 company-agent-wiki-cli read --doc-id process.example --workspace /absolute/path/to/private-company-knowledge --auto-rebuild
 company-agent-wiki-cli serve --workspace /absolute/path/to/private-company-knowledge --port 4187 --auto-rebuild
@@ -184,13 +187,15 @@ This is the core agent workflow:
 
 1. Find candidate documents with `search` or `route`.
 2. Narrow candidates with front-matter filters such as `--type`, `--project`, `--department`, `--tag`, `--owner` and `--system`.
-3. Inspect only metadata and headings with `read --metadata --headings --auto-rebuild`.
-4. Load the full Markdown only when the candidate is clearly relevant.
+3. If `route` has no strong match, inspect `nearMisses` or run `route-debug` for token-level diagnostics.
+4. Inspect only metadata and headings with `read --metadata --headings --auto-rebuild`.
+5. Load the full Markdown only when the candidate is clearly relevant.
 
 Example:
 
 ```bash
 company-agent-wiki-cli route "Projekt Alpha Budget" --workspace /absolute/path --type project --project alpha --auto-rebuild --json
+company-agent-wiki-cli route-debug "Projekt Alpha Budget" --workspace /absolute/path --type project --project alpha --auto-rebuild --json
 company-agent-wiki-cli read --workspace /absolute/path --doc-id canonical.projekt-alpha-roadmap --metadata --headings --auto-rebuild --json
 company-agent-wiki-cli read --workspace /absolute/path --doc-id canonical.projekt-alpha-roadmap --auto-rebuild
 ```
@@ -218,6 +223,9 @@ tags:
   - alpha
 description: Klare Kurzbeschreibung für Agenten, bevor der Volltext geladen wird.
 summary: Roadmap und Entscheidungen für Projekt Alpha.
+aliases:
+  - alpha roadmap
+  - projekt alpha budget
 project: alpha
 department: entwicklung
 owners:
@@ -231,7 +239,7 @@ Recommended authoring order:
 
 1. Create the Markdown file inside `knowledge/canonical/` or another registered managed root.
 2. Use a filename that roughly describes the real content.
-3. Set front matter including `id`, `description`, `summary` and the routing fields that matter.
+3. Set front matter including `id`, `description`, `summary`, `aliases` and the routing fields that matter.
 4. If the content depends on external sources, document provenance, date and source type.
 5. Structure the file with clear `#`, `##` and `###` headings.
 6. Rebuild the index or use an `--auto-rebuild` retrieval path.
@@ -263,6 +271,14 @@ The SQLite index is intentionally local and rebuildable.
 Parallel reads such as `search`, `route`, `read`, `history` and `diff` are a supported Phase-1 goal and should work across multiple agents.
 
 Write paths such as `index rebuild` and onboarding apply are serialized per workspace through a local write lock, so concurrent writes queue behind the active writer instead of colliding.
+
+## Routing ergonomics
+
+- `aliases` is the official front-matter field for alternate document names and audit phrasing.
+- `synonyms` and `search_terms` are also accepted and folded into the same indexed alias set.
+- `route` now returns strong matches plus `nearMisses`, so agents get fallback candidates instead of a dead end.
+- `route-debug` explains which tokens matched in title, description, summary, aliases, tags, headings or path.
+- `coverage` summarizes whether a topic is strongly, partially or not yet documented.
 
 ## What Phase 1 does not do
 

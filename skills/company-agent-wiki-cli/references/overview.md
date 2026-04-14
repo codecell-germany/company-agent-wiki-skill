@@ -26,6 +26,8 @@ The published package now installs into a shared `~/.agents` home first and adds
 - `index rebuild`
 - `search`
 - `route`
+- `route-debug`
+- `coverage`
 - `read`
 - `history`
 - `diff`
@@ -39,7 +41,7 @@ The published package now installs into a shared `~/.agents` home first and adds
 4. Register any additional Markdown roots.
 5. Rebuild the index.
 6. Verify that the snapshot is fresh. On a brand-new workspace `verify` reports `missing` instead of failing hard.
-7. Search or route to the right document. For active authoring loops, prefer `--auto-rebuild` and front-matter filters such as `--type`, `--project` or `--department`.
+7. Search or route to the right document. For active authoring loops, prefer `--auto-rebuild`, front-matter filters such as `--type`, `--project` or `--department`, and check `nearMisses` or `route-debug` when routing feels too strict.
 8. Inspect metadata and headings with `read --metadata --headings --auto-rebuild`.
 9. Read the full source document or use the read-only web view.
 

@@ -15,6 +15,8 @@
 - Auto-rebuild is opt-in. Without `--auto-rebuild`, stale or missing indexes still block retrieval on purpose.
 - Search quality depends on document structure and heading hygiene in the source Markdown.
 - Front-matter filters are currently focused on common fields such as `type`, `status`, `tags`, `project`, `department`, `owners` and `systems`; there is not yet a generic arbitrary-field query language.
+- Alias-aware routing now supports `aliases`, `synonyms` and `search_terms`, but it is still lexical rather than embedding-based semantic retrieval.
+- `nearMisses` and `route-debug` improve failure ergonomics, but they still depend on maintained front matter, titles and headings.
 - Parallel reads are supported, but there is still only one active write path per workspace at a time.
 - Long-running rebuilds can delay later auto-rebuild requests because they queue behind the same workspace lock.
 - Search JSON now exposes a normalized `score` plus `rawScore`; the normalized value is better for agents, but it is still only a ranking aid, not a calibrated relevance percentage.
