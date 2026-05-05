@@ -44,5 +44,6 @@ The published package now installs into a shared `~/.agents` home first and adds
 7. Search or route to the right document. For active authoring loops, prefer `--auto-rebuild`, front-matter filters such as `--type`, `--project` or `--department`, and check `nearMisses` or `route-debug` when routing feels too strict.
 8. Inspect metadata and headings with `read --metadata --headings --auto-rebuild`.
 9. Read the full source document or use the read-only web view.
+10. After authoring changes in a Git-synchronized workspace, use the workspace helper such as `wiki-save "Update company knowledge"`; use `wiki-sync` only for clean working trees.
 
 Parallel reads are supported. Writes are serialized per workspace.

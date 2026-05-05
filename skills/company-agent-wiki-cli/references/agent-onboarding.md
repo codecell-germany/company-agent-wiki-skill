@@ -23,6 +23,17 @@ company-agent-wiki-cli serve --workspace /absolute/path --port 4187 --auto-rebui
 
 Only after the company profile is clear enough and these checks succeed should you search or browse deeply.
 
+## If the Workspace Is Git-Synchronized
+
+If the workspace provides sync helpers, use them instead of raw Git commands:
+
+```bash
+wiki-save "Update company knowledge"
+wiki-sync
+```
+
+Use `wiki-save` after creating or editing knowledge. Use `wiki-sync` only when the working tree is clean and you want to fast-forward/push the latest state. If either command reports conflicts or local changes, stop and report instead of overwriting.
+
 ## If the Workspace Does Not Exist Yet
 
 ```bash

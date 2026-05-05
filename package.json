@@ -1,9 +1,17 @@
 {
   "name": "@codecell-germany/company-agent-wiki-skill",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Context is king: agent-first local company knowledge workspace with metadata-first retrieval, Markdown as truth, SQLite-indexed front matter, Git-aware verification, and a shared agent skill installer.",
   "private": false,
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/codecell-germany/company-agent-wiki-skill.git"
+  },
+  "homepage": "https://github.com/codecell-germany/company-agent-wiki-skill#readme",
+  "bugs": {
+    "url": "https://github.com/codecell-germany/company-agent-wiki-skill/issues"
+  },
   "type": "commonjs",
   "main": "dist/index.js",
   "bin": {

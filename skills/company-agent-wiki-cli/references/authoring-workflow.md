@@ -106,6 +106,7 @@ Beispiel:
 6. `company-agent-wiki-cli index rebuild --workspace /absolute/path --json` ausführen.
 7. Optional mit `search --auto-rebuild`, `route --auto-rebuild` und `read --metadata --headings --auto-rebuild` prüfen.
 8. Wenn das Dokument strukturell wichtig ist, Navigation oder README ergänzen.
+9. Wenn das Workspace über Git synchronisiert wird, nach dem Index-Rebuild den vorhandenen Sync-Helper verwenden, bevorzugt `wiki-save "Update company knowledge"`.
 
 ## Integrations-Checkliste
 
@@ -116,6 +117,32 @@ Beispiel:
 - Navigation oder Startseite ergänzt, wenn relevant
 - Index aktualisiert
 - `read --metadata --headings --auto-rebuild` geprüft
+- Git-Sync abgeschlossen, wenn das Workspace synchronisiert wird
+
+## Git-Sync Für Autoren
+
+Wenn das Workspace eigene Sync-Helfer enthält, gelten diese als sicherer Weg für Agenten. Verwende nicht direkt rohe Git-Kommandos, solange `wiki-save` oder `wiki-sync` vorhanden ist.
+
+Nach Wissensänderungen:
+
+```bash
+company-agent-wiki-cli index rebuild --workspace /absolute/path --json
+wiki-save "Update company knowledge"
+```
+
+Für reine Synchronisation ohne lokale Änderungen:
+
+```bash
+wiki-sync
+```
+
+Wichtige Regeln:
+
+- `wiki-save` ist für lokale Änderungen zuständig.
+- `wiki-sync` soll nur bei sauberem Working Tree laufen und lokale Änderungen nicht überschreiben.
+- Wenn `wiki-sync` wegen lokaler Änderungen abbricht, prüfe diese Änderungen und verwende danach bewusst `wiki-save`.
+- Wenn Git-Konflikte auftreten, stoppe und melde den Konflikt. Nicht automatisch mit `git reset`, `git checkout --`, `--ours`, `--theirs` oder Force-Push auflösen.
+- Abgeleitete SQLite-Indizes und WAL/SHM-Dateien bleiben aus Git heraus.
 
 ## Bestehendes Wissen Erweitern
 

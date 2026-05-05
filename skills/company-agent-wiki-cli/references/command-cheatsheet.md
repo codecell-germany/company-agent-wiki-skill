@@ -51,6 +51,21 @@ company-agent-wiki-cli history --workspace /absolute/path --doc-id process.examp
 company-agent-wiki-cli diff --workspace /absolute/path --doc-id process.example --json
 ```
 
+## Git Sync Helpers
+
+If the private workspace provides helper scripts, prefer them over ad-hoc Git commands:
+
+```bash
+wiki-save "Update company knowledge"
+wiki-sync
+```
+
+Expected semantics:
+
+- `wiki-save "..."`: rebuild/index if configured, commit intended workspace changes, pull/rebase, push.
+- `wiki-sync`: only fast-forward/push a clean working tree; refuse dirty local changes.
+- On conflicts: stop and report. Do not force-push or auto-reset.
+
 ## Web View
 
 ```bash

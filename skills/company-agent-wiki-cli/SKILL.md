@@ -1,6 +1,6 @@
 ---
 name: company-agent-wiki-cli
-description: Use when an agent must set up, onboard, verify, index, search or browse a private local company knowledge workspace that uses Markdown as truth, SQLite as derived index and Git for history. Covers first-run setup, company-profile questioning, root registration, stale-index checks, read-only web browsing, document history and diff workflows.
+description: Use when an agent must set up, onboard, verify, index, search, browse, author, or synchronize a private local company knowledge workspace that uses Markdown as truth, SQLite as derived index and Git for history. Covers first-run setup, company-profile questioning, root registration, stale-index checks, read-only web browsing, document history, diff workflows, and safe Git sync helpers such as wiki-save/wiki-sync when present.
 ---
 
 # Company Agent Wiki CLI
@@ -192,6 +192,41 @@ Empfohlener Ablauf:
    - Startseite
    - thematische README
    - Prozess- oder Projektübersicht
+9. Wenn das Workspace Git-synchronisiert ist, die Änderungen danach über den workspace-spezifischen Sync-Helper speichern; siehe `Git-Sync Nach Schreibvorgängen`.
+
+## Git-Sync Nach Schreibvorgängen
+
+Markdown ist die Quelle der Wahrheit; Git ist die Synchronisations- und Historienebene. Wenn ein Workspace Sync-Helper bereitstellt, verwende diese statt roher `git add/commit/pull/push`-Kommandos.
+
+Bevorzugter Ablauf nach Änderungen:
+
+```bash
+company-agent-wiki-cli index rebuild --workspace /absolute/path --json
+wiki-save "Update company knowledge"
+```
+
+Regeln:
+
+- `wiki-save` ist der bevorzugte Abschluss nach Wissensänderungen, wenn der Befehl im Workspace oder PATH vorhanden ist.
+- `wiki-save` darf Index-Rebuild, Stage, Commit, Pull/Rebase und Push kapseln; lies die lokale Implementierung, wenn du unsicher bist.
+- `wiki-sync` ist nur für einen sauberen Working Tree gedacht. Es soll lokale Änderungen nicht überschreiben.
+- Wenn `wiki-sync` lokale Änderungen meldet, nicht mit Git-Kommandos improvisieren; prüfe die Änderungen und führe bewusst `wiki-save "..."` aus.
+- Wenn Git-Konflikte auftreten, stoppe. Nicht automatisch `--ours`, `--theirs`, `reset`, `checkout` oder Force-Push verwenden.
+- Commit-Nachrichten sollen kurz beschreiben, welches Wissen geändert wurde, z. B. `Update CodeCell wiki sync process`.
+- Abgeleitete SQLite-Dateien wie `.company-agent-wiki/index.sqlite`, WAL/SHM-Dateien und lokale Caches sollen nicht versioniert werden.
+
+Wenn kein `wiki-save` existiert, aber der Mensch Git-Sync explizit erwartet, verwende konservativ:
+
+```bash
+company-agent-wiki-cli index rebuild --workspace /absolute/path --json
+git status --short
+git add knowledge .company-agent-wiki/workspace.json README.md .gitignore
+git commit -m "Update company knowledge"
+git pull --rebase
+git push
+```
+
+Vor rohem Git-Sync gilt: niemals fremde Änderungen revertieren, niemals force-pushen und niemals ohne vorherigen Statuscheck committen.
 
 ## Bestehendes Wissen Erweitern
 
@@ -272,6 +307,7 @@ company-agent-wiki-cli onboarding company \
 - For agent workflows, prefer `--auto-rebuild` on `search`, `route`, `read` and `serve` unless you explicitly want strict stale-index failures.
 - Parallel `search`, `route`, `read`, `history` and `diff` calls against the same workspace are now intended to work.
 - Write paths are serialized per workspace. If one agent is rebuilding the index or applying onboarding writes, other write paths wait behind that workspace lock instead of colliding.
+- Git-synchronisierte Workspaces sollen nach Schreibvorgängen mit dem vorhandenen Sync-Helper abgeschlossen werden, bevorzugt `wiki-save "..."`. `wiki-sync` ist ein sauberer Pull/Push-Pfad für unveränderte Working Trees, kein Ersatz für Speichern lokaler Änderungen.
 - `aliases` ist das offizielle Front-Matter-Feld für alternative Suchphrasen. `synonyms` und `search_terms` werden ebenfalls akzeptiert und in denselben Alias-Index übernommen.
 - Wenn `route` leer wirkt, zuerst `nearMisses` prüfen oder `route-debug` ausführen, bevor du mit manueller Volltextsuche improvisierst.
 - Für Audit-Fragen kann `coverage` zeigen, ob ein Thema stark, teilweise oder noch gar nicht dokumentiert ist.
